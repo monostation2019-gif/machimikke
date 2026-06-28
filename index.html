@@ -1982,28 +1982,42 @@ async function loadMyReplies() {
   const uid = auth.currentUser ? auth.currentUser.uid : null;
   if (!uid) return;
 
+  const box  = document.getElementById('myRepliesBox');
+  const list = document.getElementById('myRepliesList');
+
   try {
+    // orderByを使わずwhereのみ（複合インデックス不要）→ JS側でソート
     const snap = await db.collection('notifications')
       .where('toUid', '==', uid)
-      .orderBy('createdAt', 'desc')
       .get();
 
-    if (snap.empty) return;
+    // 管理者手動返信のみ抽出（isAutoReply:falseのもの）
+    const docs = snap.docs.filter(doc => doc.data().isAutoReply !== true);
 
-    const box  = document.getElementById('myRepliesBox');
-    const list = document.getElementById('myRepliesList');
+    if (!docs.length) {
+      box.style.display = 'none';
+      return;
+    }
+
+    // JS側で日付降順ソート
+    docs.sort((a, b) => {
+      const ta = a.data().createdAt ? a.data().createdAt.seconds : 0;
+      const tb = b.data().createdAt ? b.data().createdAt.seconds : 0;
+      return tb - ta;
+    });
+
     box.style.display = 'block';
 
-    list.innerHTML = snap.docs.map(doc => {
+    list.innerHTML = docs.map(doc => {
       const d = doc.data();
       const date = d.createdAt
         ? new Date(d.createdAt.seconds * 1000).toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })
-        : '';
+        : '日時不明';
       const isNew = !d.read;
       return `
         <div style="padding:10px;background:${isNew ? 'rgba(245,158,11,.08)' : 'rgba(0,0,0,.15)'};border-radius:10px;margin-bottom:8px;border:1px solid ${isNew ? 'rgba(245,158,11,.3)' : 'rgba(255,255,255,.05)'};">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
-            <span style="font-size:10px;font-weight:700;color:var(--amber);">📬 ${d.from || '管理者'}</span>
+            <span style="font-size:10px;font-weight:700;color:var(--amber);">📬 ${escHtmlProfile(d.from || '管理者')}</span>
             ${isNew ? '<span style="font-size:9px;background:rgba(245,158,11,.2);color:var(--amber);border-radius:10px;padding:2px 7px;">NEW</span>' : ''}
           </div>
           <div style="font-size:12px;line-height:1.7;color:var(--white);white-space:pre-wrap;">${escHtmlProfile(d.message)}</div>
@@ -2011,13 +2025,17 @@ async function loadMyReplies() {
         </div>`;
     }).join('');
 
-    // 未読を既読に
-    snap.docs.forEach(doc => {
+    // 未読を既読に更新
+    docs.forEach(doc => {
       if (!doc.data().read) {
-        db.collection('notifications').doc(doc.id).update({ read: true }).catch(()=>{});
+        db.collection('notifications').doc(doc.id).update({ read: true }).catch(() => {});
       }
     });
-  } catch(e) { console.log('replies load error', e); }
+
+  } catch(e) {
+    console.error('[loadMyReplies] error:', e.code, e.message);
+    box.style.display = 'none';
+  }
 }
 
 function escHtmlProfile(str) {
@@ -2958,7 +2976,7 @@ function goTab(t){
   if(t==='rank') renderRanking();
   if(t==='hot')  { initHotspot(); }
   if(t==='past') { renderPastData(); }
-  if(t==='prof') { updateMyStats(); }
+  if(t==='prof') { updateMyStats(); loadMyReplies(); }
 }
 
 function goToMapCoord(lat,lng){
