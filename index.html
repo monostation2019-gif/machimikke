@@ -724,8 +724,8 @@ select.pf-input optgroup{background:var(--navy3);color:var(--teal);font-size:11p
       <div class="uprof-av" id="uprofAv"><span>👤</span></div>
       <div style="flex:1;min-width:0;">
         <div class="uprof-name" id="uprofName">—</div>
-        <div class="uprof-uid"  id="uprofUid">—</div>
         <div class="uprof-area" id="uprofArea"></div>
+        <div class="uprof-bio"  id="uprofBio"></div>
       </div>
     </div>
     <!-- ポイントのみ表示 -->
@@ -2839,38 +2839,75 @@ function renderMySpecialtyChart() {
 }
 
 // 他ユーザーのプロフィールポップアップを開く
-function openUprof(uid) {
-  // 自分でも他人でも同じ閲覧専用ポップアップを表示（プロフィールタブへは飛ばない）
+async function openUprof(uid) {
+  // 先にポップアップを表示（ローディング状態）
+  const avEl   = document.getElementById('uprofAv');
+  const nameEl = document.getElementById('uprofName');
+  const areaEl = document.getElementById('uprofArea');
+  const bioEl  = document.getElementById('uprofBio');
+  const ptsEl  = document.getElementById('uprofPts');
 
-  // ユーザーのrecから基本情報を取得
-  const userRecs = recs.filter(r => r.uid === uid);
-  const latestRec = userRecs.slice().sort((a, b) =>
-    (parseDate(b.date)||0) - (parseDate(a.date)||0)
-  )[0];
-  const uname = (uid === myID && myProfile.name) ? myProfile.name
-              : (latestRec?.uname || uid);
-  const uarea = (uid === myID && myProfile.area) ? myProfile.area
-              : (latestRec?.uarea || '');
+  avEl.innerHTML  = `<span style="font-size:26px;">👤</span>`;
+  nameEl.textContent = '…';
+  areaEl.textContent = '';
+  bioEl.textContent  = '';
+  ptsEl.textContent  = '…';
+  document.getElementById('uprofOverlay').classList.add('on');
 
-  // アイコン：自分はアバター画像、他人はイニシャル
-  const avEl = document.getElementById('uprofAv');
-  if (uid === myID && myProfile.avatar) {
-    avEl.innerHTML = `<img src="${myProfile.avatar}" style="width:100%;height:100%;object-fit:cover;">`;
+  // --- 自分のプロフィール ---
+  let uname  = '';
+  let uarea  = '';
+  let ubio   = '';
+  let uavatar = '';
+
+  if (uid === myID) {
+    uname   = myProfile.name   || '';
+    uarea   = myProfile.area   || '';
+    ubio    = myProfile.bio    || '';
+    uavatar = myProfile.avatar || '';
   } else {
-    avEl.innerHTML = `<span style="font-size:26px;">${uname.slice(0,1) || '👤'}</span>`;
+    // Firestoreから他ユーザーのプロフィールを取得
+    try {
+      const doc = await db.collection('users').doc(uid).get();
+      if (doc.exists) {
+        const pf = doc.data();
+        uname   = pf.name   || '';
+        uarea   = pf.area   || '';
+        ubio    = pf.bio    || '';
+        uavatar = pf.avatar || '';
+      }
+    } catch(e) {
+      console.warn('uprof fetch error', e);
+    }
+    // Firestoreで名前が取れなかったときはrecのunameで補完
+    if (!uname) {
+      const userRecs = recs.filter(r => r.uid === uid);
+      const latestRec = userRecs.slice().sort((a, b) =>
+        (parseDate(b.date)||0) - (parseDate(a.date)||0)
+      )[0];
+      uname = latestRec?.uname || uid;
+      if (!uarea) uarea = latestRec?.uarea || '';
+    }
   }
 
-  document.getElementById('uprofName').textContent = uname;
-  document.getElementById('uprofUid').textContent  = uid;
-  document.getElementById('uprofArea').textContent = uarea ? '📍 ' + uarea : '';
+  // --- アイコン表示 ---
+  if (uavatar) {
+    avEl.innerHTML = `<img src="${uavatar}" style="width:100%;height:100%;object-fit:cover;">`;
+  } else {
+    const initial = uname.slice(0,1) || '👤';
+    avEl.innerHTML = `<span style="font-size:26px;">${initial}</span>`;
+  }
 
-  // 全期間ポイント集計
+  nameEl.textContent = uname || '名無し';
+  areaEl.textContent = uarea ? '📍 ' + uarea : '';
+  bioEl.textContent  = ubio  ? '💬 ' + ubio  : '';
+
+  // --- 全期間ポイント集計 ---
   const allMonthKeys = [...new Set(recs.map(r => {
     const d = parseDate(r.date); return d ? getMonthKey(d) : null;
   }).filter(Boolean))];
   let totalPts = 0;
   if (uid === myID) {
-    // 自分はptHistoryから正確な値を取得
     totalPts = getTotalPts();
   } else {
     allMonthKeys.forEach(mk => {
@@ -2879,9 +2916,7 @@ function openUprof(uid) {
       if (u) totalPts += u.totalPts;
     });
   }
-  document.getElementById('uprofPts').textContent = totalPts;
-
-  document.getElementById('uprofOverlay').classList.add('on');
+  ptsEl.textContent = totalPts;
 }
 
 function closeUprof(e) {
