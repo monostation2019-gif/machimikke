@@ -860,6 +860,15 @@ select.pf-input optgroup{background:var(--navy3);color:var(--teal);font-size:11p
 
 <!-- トースト通知 -->
 <div class="toast" id="toast"></div>
+<!-- ===== フィードバック送信完了モーダル ===== -->
+<div id="fbSuccessOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10000;align-items:center;justify-content:center;padding:20px;">
+  <div id="fbSuccessBox" style="background:#112240;border-radius:20px;padding:28px 24px;max-width:340px;width:100%;border:1px solid rgba(14,165,160,.4);box-shadow:0 24px 64px rgba(0,0,0,.6);text-align:center;transform:scale(.92);opacity:0;transition:transform .25s,opacity .25s;">
+    <div id="fbSuccessIcon" style="font-size:52px;margin-bottom:10px;">📨</div>
+    <div id="fbSuccessTitle" style="font-size:18px;font-weight:700;color:#0EA5A0;margin-bottom:8px;">送信しました！</div>
+    <div id="fbSuccessMsg" style="font-size:13px;color:#8BA3BC;line-height:1.75;margin-bottom:22px;"></div>
+    <button onclick="closeFbModal()" style="background:linear-gradient(135deg,#0EA5A0,#0891B2);color:#0A1628;border:none;border-radius:12px;padding:13px 32px;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:.5px;">✅ 閉じる</button>
+  </div>
+</div>
 
 <!-- PWAインストールバナー -->
 <div class="install-banner" id="installBanner">
@@ -1885,6 +1894,30 @@ async function submitFeedback() {
     return;
   }
 
+  // 種別ごとのポップアップメッセージ定義
+  const FB_MODAL = {
+    request: {
+      icon: '💡',
+      title: 'ご要望を受け付けました！',
+      msg: 'ありがとうございます！\nいただいたご要望は今後のアップデートの参考にさせていただきます。\nより良いアプリを一緒に作っていきましょう！'
+    },
+    report:  {
+      icon: '📋',
+      title: '報告を受け付けました！',
+      msg: 'ありがとうございます！\n報告内容を確認し、必要な対応を進めてまいります。\nご協力に感謝します！'
+    },
+    message: {
+      icon: '💌',
+      title: 'メッセージを受け取りました！',
+      msg: 'ありがとうございます！\n温かいメッセージ、うれしく拝見します。\n引き続き海ゴミ活動を一緒に盛り上げていきましょう！'
+    },
+    other:   {
+      icon: '💬',
+      title: 'メッセージを受け付けました！',
+      msg: 'ありがとうございます！\n内容を確認のうえ、対応いたします。\nUMIをご利用いただきありがとうございます！'
+    }
+  };
+
   try {
     result.textContent = '送信中...';
     result.style.display = 'block';
@@ -1905,22 +1938,12 @@ async function submitFeedback() {
       replied:   false
     });
 
-    // 自動返信メッセージをnotificationsコレクションに保存
-    await db.collection('notifications').add({
-      toUid:     uid,
-      toName:    userName,
-      fbId:      docRef.id,
-      message:   'お問い合わせありがとうございます！内容を確認し、必要に応じてご返信いたします。',
-      from:      '管理者',
-      isAutoReply: true,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      read:      false
-    });
-
-    result.textContent = '✅ 送信しました！管理者からの返信はプロフィールページでご確認いただけます。';
-    result.style.background = 'rgba(16,185,129,.15)';
-    result.style.color = '#10B981';
+    result.style.display = 'none';
     document.getElementById('fbBody').value = '';
+
+    // 種別に応じたモーダル表示
+    const info = FB_MODAL[type] || FB_MODAL.other;
+    showFbModal(info.icon, info.title, info.msg);
 
     // 返信欄を再読み込み
     loadMyReplies();
@@ -1928,8 +1951,30 @@ async function submitFeedback() {
     result.textContent = '❌ 送信に失敗しました: ' + e.message;
     result.style.background = 'rgba(239,68,68,.15)';
     result.style.color = '#EF4444';
+    result.style.display = 'block';
     console.error(e);
   }
+}
+
+function showFbModal(icon, title, msg) {
+  const overlay = document.getElementById('fbSuccessOverlay');
+  const box     = document.getElementById('fbSuccessBox');
+  document.getElementById('fbSuccessIcon').textContent  = icon;
+  document.getElementById('fbSuccessTitle').textContent = title;
+  document.getElementById('fbSuccessMsg').textContent   = msg;
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => {
+    box.style.transform = 'scale(1)';
+    box.style.opacity   = '1';
+  });
+}
+
+function closeFbModal() {
+  const overlay = document.getElementById('fbSuccessOverlay');
+  const box     = document.getElementById('fbSuccessBox');
+  box.style.transform = 'scale(.92)';
+  box.style.opacity   = '0';
+  setTimeout(() => { overlay.style.display = 'none'; }, 250);
 }
 
 /* ===== 自分への通知（返信）を読み込む ===== */

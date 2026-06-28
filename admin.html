@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>管理者ページ — 海ゴミ探究ノート</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 :root{
@@ -308,7 +309,12 @@ const FIREBASE_CONFIG = {
 const ADMIN_PASS_HASH = 'f604b4c96d23319e76a29b1a3bc00b8f651603ec1ab25055c7c5ec4374e7d092';
 
 firebase.initializeApp(FIREBASE_CONFIG);
-const db = firebase.firestore();
+const db   = firebase.firestore();
+const auth = firebase.auth();
+
+// 管理者ページはFirebase匿名認証でFirestoreへのアクセス権を取得
+// （Firestoreルール上 request.auth != null が必要なため）
+auth.signInAnonymously().catch(e => console.warn('匿名認証エラー:', e));
 
 let allFeedbacks = [];
 let currentFilter = 'all';
