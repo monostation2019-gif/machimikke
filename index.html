@@ -1505,6 +1505,21 @@ function _applyProfileToUI() {
   // ヘッダーアイコン・ユーザー名も同期
   syncHeaderIcon();
   syncHeaderUser();
+  // ランキング上の自分のアバターも同期（data-rank-uid="" は自分以外、自分はdata属性なし → is-me クラスで特定）
+  _syncMyRankAvatar();
+}
+
+// ランキング上の「自分」アバターを最新の myProfile.avatar に同期
+function _syncMyRankAvatar() {
+  // trophy-av / rank-row-av のうち、is-me クラスを持つ行の中のアバター要素を更新
+  document.querySelectorAll('.trophy-row.is-me .trophy-av, .rank-row.is-me .rank-row-av').forEach(el => {
+    if (myProfile.avatar) {
+      el.innerHTML = `<img src="${myProfile.avatar}" style="width:100%;height:100%;object-fit:cover;">`;
+    } else {
+      const name = myProfile.name || '👤';
+      el.innerHTML = `<span style="font-size:${el.classList.contains('trophy-av')?'20':'18'}px;">${name.slice(0,1)}</span>`;
+    }
+  });
 }
 
 // localStorage バックアップ（UID別）
