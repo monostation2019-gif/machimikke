@@ -168,7 +168,7 @@ h1 small{display:block;font-size:8px;font-weight:400;letter-spacing:2px;color:va
 .map-filter-bar::-webkit-scrollbar{display:none;}
 .mf-btn{flex:0 0 auto;background:rgba(10,22,40,.88);border:1.5px solid rgba(255,255,255,.15);border-radius:20px;color:var(--gray);font-size:10px;padding:5px 10px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;-webkit-tap-highlight-color:transparent;white-space:nowrap;backdrop-filter:blur(4px);}
 .mf-btn.on{background:rgba(14,165,160,.35);border-color:var(--teal);color:var(--white);}
-.map-style-bar{position:absolute;bottom:18px;left:8px;z-index:300;display:flex;gap:4px;background:rgba(10,22,40,.88);border:1.5px solid rgba(255,255,255,.15);border-radius:20px;padding:4px;backdrop-filter:blur(4px);}
+.map-style-bar{position:absolute;top:46px;left:8px;z-index:300;display:flex;gap:4px;background:rgba(10,22,40,.88);border:1.5px solid rgba(255,255,255,.15);border-radius:20px;padding:4px;backdrop-filter:blur(4px);}
 .ms-btn{background:transparent;border:none;border-radius:16px;color:var(--gray);font-size:9px;padding:5px 9px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;-webkit-tap-highlight-color:transparent;white-space:nowrap;}
 .ms-btn.on{background:rgba(14,165,160,.35);color:var(--white);font-weight:700;}
 
@@ -2667,13 +2667,14 @@ function initMap(){
     try {
       const center=gps||{lat:34.4875,lng:136.7082};
       leafMap=L.map('mapEl',{
-        zoomControl:true,
+        zoomControl:false,
         attributionControl:true,
         // iOS Safariのタッチ問題を回避
         tap:false,
         fadeAnimation:false,
         markerZoomAnimation:false
       }).setView([center.lat,center.lng],14);
+      L.control.zoom({position:'bottomright'}).addTo(leafMap);
       applyMapStyle();
 
       // 複数タイミングでinvalidateSizeを呼ぶ（iOS Safariのレンダリング遅延対策）
@@ -3636,8 +3637,8 @@ function getAllHotPeriods() {
     while (q < 0) { q += 4; y--; }
     const startM = q * 3;       // 0,3,6,9
     const endM   = startM + 2;  // 2,5,8,11
-    const startDate = new Date(y, startM, 1);
-    const endDate   = new Date(y, endM + 1, 0);
+    const startDate = new Date(y, startM, 1, 0, 0, 0, 0);
+    const endDate   = new Date(y, endM + 1, 0, 23, 59, 59, 999);
     const sy = startDate.getFullYear(), sm = startDate.getMonth()+1;
     const ey = endDate.getFullYear(),   em = endDate.getMonth()+1;
     const label = `${sy}年${sm}月〜${ey}年${em}月`;
@@ -3954,8 +3955,8 @@ function getPastAllPeriods() {
     safetyCount++;
     const startM = q * 3;
     const endM = startM + 2;
-    const startDate = new Date(y, startM, 1);
-    const endDate = new Date(y, endM + 1, 0);
+    const startDate = new Date(y, startM, 1, 0, 0, 0, 0);
+    const endDate = new Date(y, endM + 1, 0, 23, 59, 59, 999);
     const sy = startDate.getFullYear(), sm = startDate.getMonth()+1;
     const ey = endDate.getFullYear(), em = endDate.getMonth()+1;
     const label = `${sy}年${sm}月〜${ey}年${em}月`;
