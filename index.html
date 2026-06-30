@@ -164,9 +164,13 @@ h1 small{display:block;font-size:8px;font-weight:400;letter-spacing:2px;color:va
 .btn-repin{background:rgba(14,165,160,.15);border:1px solid rgba(14,165,160,.4);color:var(--teal);border-radius:6px;padding:3px 10px;font-size:10px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;}
 
 /* マップフィルター */
-.map-filter-bar{position:absolute;top:8px;left:8px;right:8px;z-index:300;display:flex;gap:4px;flex-wrap:wrap;}
-.mf-btn{background:rgba(10,22,40,.88);border:1.5px solid rgba(255,255,255,.15);border-radius:20px;color:var(--gray);font-size:10px;padding:5px 10px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;-webkit-tap-highlight-color:transparent;white-space:nowrap;backdrop-filter:blur(4px);}
+.map-filter-bar{position:absolute;top:8px;left:8px;right:8px;z-index:300;display:flex;gap:4px;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px;}
+.map-filter-bar::-webkit-scrollbar{display:none;}
+.mf-btn{flex:0 0 auto;background:rgba(10,22,40,.88);border:1.5px solid rgba(255,255,255,.15);border-radius:20px;color:var(--gray);font-size:10px;padding:5px 10px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;-webkit-tap-highlight-color:transparent;white-space:nowrap;backdrop-filter:blur(4px);}
 .mf-btn.on{background:rgba(14,165,160,.35);border-color:var(--teal);color:var(--white);}
+.map-style-bar{position:absolute;bottom:18px;left:8px;z-index:300;display:flex;gap:4px;background:rgba(10,22,40,.88);border:1.5px solid rgba(255,255,255,.15);border-radius:20px;padding:4px;backdrop-filter:blur(4px);}
+.ms-btn{background:transparent;border:none;border-radius:16px;color:var(--gray);font-size:9px;padding:5px 9px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;-webkit-tap-highlight-color:transparent;white-space:nowrap;}
+.ms-btn.on{background:rgba(14,165,160,.35);color:var(--white);font-weight:700;}
 
 /* LIST */
 .filter-scroll{flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch;background:var(--navy2);border-bottom:1px solid rgba(14,165,160,.15);}
@@ -449,16 +453,16 @@ select.pf-input optgroup{background:var(--navy3);color:var(--teal);font-size:11p
       <div class="sec">ゴミの種類を選択</div>
       <div class="gomi-grid">
         <button class="gb" data-t="ペットボトル" onclick="selG(this)"><span class="em">🧴</span><span class="nm">ペット<br>ボトル</span></button>
-        <button class="gb" data-t="缶"           onclick="selG(this)"><span class="em">🥫</span><span class="nm">缶</span></button>
-        <button class="gb" data-t="ビン"         onclick="selG(this)"><span class="em">🍾</span><span class="nm">ビン</span></button>
-        <button class="gb" data-t="紙類"         onclick="selG(this)"><span class="em">📄</span><span class="nm">紙類</span></button>
+        <button class="gb" data-t="ビニール類"   onclick="selG(this)"><span class="em">🛍️</span><span class="nm">ビニール<br>類</span></button>
         <button class="gb" data-t="プラスチック片" onclick="selG(this)"><span class="em">♻️</span><span class="nm">プラスチック<br>片</span></button>
         <button class="gb" data-t="発泡スチロール" onclick="selG(this)"><span class="em">🧊</span><span class="nm">発泡<br>スチロール</span></button>
-        <button class="gb" data-t="タバコ"       onclick="selG(this)"><span class="em">🚬</span><span class="nm">タバコ</span></button>
+        <button class="gb" data-t="紙類"         onclick="selG(this)"><span class="em">📄</span><span class="nm">紙類</span></button>
+        <button class="gb" data-t="缶・ビン"     onclick="selG(this)"><span class="em">🥫</span><span class="nm">缶・<br>ビン</span></button>
+        <button class="gb" data-t="タバコ類"     onclick="selG(this)"><span class="em">🚬</span><span class="nm">タバコ<br>類</span></button>
         <button class="gb" data-t="ライター"     onclick="selG(this)"><span class="em lighter-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none"><rect x="5" y="10" width="10" height="12" rx="2" fill="#8BA3BC"/><rect x="7" y="12" width="6" height="3" rx="1" fill="#112240"/><rect x="9" y="8" width="2" height="3" rx="1" fill="#8BA3BC"/><path d="M10 8 Q10 5 12 4 Q13 7 11 8" fill="#F59E0B"/><path d="M11 6 Q11 4 13 3 Q13.5 5.5 12 7" fill="#EF4444" opacity="0.7"/></svg></span><span class="nm">ライター</span></button>
         <button class="gb" data-t="漁具"         onclick="selG(this)"><span class="em">🎣</span><span class="nm">漁具</span></button>
         <button class="gb" data-t="ロープ"       onclick="selG(this)"><span class="em">🪢</span><span class="nm">ロープ</span></button>
-        <button class="gb" data-t="ブイ"         onclick="selG(this)"><span class="em">⚪</span><span class="nm">ブイ</span></button>
+        <button class="gb" data-t="フロート類"   onclick="selG(this)"><span class="em">🛟</span><span class="nm">フロート<br>類</span></button>
         <button class="gb" data-t="その他"       onclick="selG(this)"><span class="em">❓</span><span class="nm">その他</span></button>
       </div>
 
@@ -480,17 +484,23 @@ select.pf-input optgroup{background:var(--navy3);color:var(--teal);font-size:11p
   <div class="map-filter-bar" id="mapFilterBar">
     <button class="mf-btn on" data-f="all" onclick="setMapFilter(this)">🗺️ 全種類</button>
     <button class="mf-btn" data-f="ペットボトル" onclick="setMapFilter(this)">🧴 ペットボトル</button>
-    <button class="mf-btn" data-f="缶" onclick="setMapFilter(this)">🥫 缶</button>
-    <button class="mf-btn" data-f="ビン" onclick="setMapFilter(this)">🍾 ビン</button>
-    <button class="mf-btn" data-f="紙類" onclick="setMapFilter(this)">📄 紙類</button>
+    <button class="mf-btn" data-f="ビニール類" onclick="setMapFilter(this)">🛍️ ビニール類</button>
     <button class="mf-btn" data-f="プラスチック片" onclick="setMapFilter(this)">♻️ プラ片</button>
     <button class="mf-btn" data-f="発泡スチロール" onclick="setMapFilter(this)">🧊 発泡</button>
-    <button class="mf-btn" data-f="タバコ" onclick="setMapFilter(this)">🚬 タバコ</button>
+    <button class="mf-btn" data-f="紙類" onclick="setMapFilter(this)">📄 紙類</button>
+    <button class="mf-btn" data-f="缶・ビン" onclick="setMapFilter(this)">🥫 缶・ビン</button>
+    <button class="mf-btn" data-f="タバコ類" onclick="setMapFilter(this)">🚬 タバコ類</button>
     <button class="mf-btn" data-f="ライター" onclick="setMapFilter(this)">🪔 ライター</button>
     <button class="mf-btn" data-f="漁具" onclick="setMapFilter(this)">🎣 漁具</button>
     <button class="mf-btn" data-f="ロープ" onclick="setMapFilter(this)">🪢 ロープ</button>
-    <button class="mf-btn" data-f="ブイ" onclick="setMapFilter(this)">⚪ ブイ</button>
+    <button class="mf-btn" data-f="フロート類" onclick="setMapFilter(this)">🛟 フロート類</button>
     <button class="mf-btn" data-f="その他" onclick="setMapFilter(this)">❓ その他</button>
+  </div>
+  <div class="map-style-bar" id="mapStyleBar">
+    <button class="ms-btn on" data-s="normal" onclick="setMapStyle(this,'normal')">通常</button>
+    <button class="ms-btn" data-s="gray" onclick="setMapStyle(this,'gray')">グレー</button>
+    <button class="ms-btn" data-s="dark" onclick="setMapStyle(this,'dark')">ダーク</button>
+    <button class="ms-btn" data-s="satellite" onclick="setMapStyle(this,'satellite')">衛星</button>
   </div>
   <div class="repin-banner"  id="repinBanner">
     📍 地図をタップして新しいピン位置を指定してください
@@ -514,16 +524,16 @@ select.pf-input optgroup{background:var(--navy3);color:var(--teal);font-size:11p
       <button class="fbtn"    id="f-done" onclick="setF('done')">✅ 回収済み</button>
       <button class="fbtn"    id="f-mine" onclick="setF('mine')">👤 自分のみ</button>
       <button class="fbtn"    id="f-ペットボトル" onclick="setF('ペットボトル')">🧴 ペットボトル</button>
-      <button class="fbtn"    id="f-缶" onclick="setF('缶')">🥫 缶</button>
-      <button class="fbtn"    id="f-ビン" onclick="setF('ビン')">🍾 ビン</button>
-      <button class="fbtn"    id="f-紙類" onclick="setF('紙類')">📄 紙類</button>
+      <button class="fbtn"    id="f-ビニール類" onclick="setF('ビニール類')">🛍️ ビニール類</button>
       <button class="fbtn"    id="f-プラスチック片" onclick="setF('プラスチック片')">♻️ プラ片</button>
       <button class="fbtn"    id="f-発泡スチロール" onclick="setF('発泡スチロール')">🧊 発泡</button>
-      <button class="fbtn"    id="f-タバコ" onclick="setF('タバコ')">🚬 タバコ</button>
+      <button class="fbtn"    id="f-紙類" onclick="setF('紙類')">📄 紙類</button>
+      <button class="fbtn"    id="f-缶・ビン" onclick="setF('缶・ビン')">🥫 缶・ビン</button>
+      <button class="fbtn"    id="f-タバコ類" onclick="setF('タバコ類')">🚬 タバコ類</button>
       <button class="fbtn"    id="f-ライター" onclick="setF('ライター')">🪔 ライター</button>
       <button class="fbtn"    id="f-漁具" onclick="setF('漁具')">🎣 漁具</button>
       <button class="fbtn"    id="f-ロープ" onclick="setF('ロープ')">🪢 ロープ</button>
-      <button class="fbtn"    id="f-ブイ" onclick="setF('ブイ')">⚪ ブイ</button>
+      <button class="fbtn"    id="f-フロート類" onclick="setF('フロート類')">🛟 フロート類</button>
       <button class="fbtn"    id="f-その他" onclick="setF('その他')">❓ その他</button>
     </div>
   </div>
@@ -577,16 +587,16 @@ select.pf-input optgroup{background:var(--navy3);color:var(--teal);font-size:11p
       <div class="rank-seg" id="rankSegRow">
         <button class="rseg on" id="rseg-total"   onclick="switchRank('total')">🏆 総合</button>
         <button class="rseg"    id="rseg-ペットボトル" onclick="switchRank('ペットボトル')">🧴</button>
-        <button class="rseg"    id="rseg-缶"       onclick="switchRank('缶')">🥫</button>
-        <button class="rseg"    id="rseg-ビン"     onclick="switchRank('ビン')">🍾</button>
-        <button class="rseg"    id="rseg-紙類"     onclick="switchRank('紙類')">📄</button>
+        <button class="rseg"    id="rseg-ビニール類" onclick="switchRank('ビニール類')">🛍️</button>
         <button class="rseg"    id="rseg-プラスチック片" onclick="switchRank('プラスチック片')">♻️</button>
         <button class="rseg"    id="rseg-発泡スチロール" onclick="switchRank('発泡スチロール')">🧊</button>
-        <button class="rseg"    id="rseg-タバコ"   onclick="switchRank('タバコ')">🚬</button>
+        <button class="rseg"    id="rseg-紙類"     onclick="switchRank('紙類')">📄</button>
+        <button class="rseg"    id="rseg-缶・ビン" onclick="switchRank('缶・ビン')">🥫</button>
+        <button class="rseg"    id="rseg-タバコ類" onclick="switchRank('タバコ類')">🚬</button>
         <button class="rseg"    id="rseg-ライター" onclick="switchRank('ライター')">🪔</button>
         <button class="rseg"    id="rseg-漁具"     onclick="switchRank('漁具')">🎣</button>
         <button class="rseg"    id="rseg-ロープ"   onclick="switchRank('ロープ')">🪢</button>
-        <button class="rseg"    id="rseg-ブイ"     onclick="switchRank('ブイ')">⚪</button>
+        <button class="rseg"    id="rseg-フロート類" onclick="switchRank('フロート類')">🛟</button>
         <button class="rseg"    id="rseg-その他"   onclick="switchRank('その他')">❓</button>
         <button class="rseg"    id="rseg-thanks"   onclick="switchRank('thanks')">💖 ありがとう</button>
       </div>
@@ -1637,16 +1647,18 @@ function startRealtimeSync() {
       snapshot.forEach(doc => {
         newRecs.push({ id: doc.id, ...doc.data() });
       });
+      // 旧ゴミ種別（缶/ビン/タバコ/ブイ）を新カテゴリへ正規化
+      const normNewRecs = normalizeRecs(newRecs);
       // ゲストの場合：Firestoreのデータ＋自分のローカル記録をマージ
       if (isGuest) {
-        const myLocalRecs = getMyLocalRecs();
-        const firestoreIds = new Set(newRecs.map(r => r.id));
-        const merged = [...newRecs];
+        const myLocalRecs = normalizeRecs(getMyLocalRecs());
+        const firestoreIds = new Set(normNewRecs.map(r => r.id));
+        const merged = [...normNewRecs];
         myLocalRecs.forEach(r => { if (!firestoreIds.has(r.id)) merged.push(r); });
         merged.sort((a,b) => (b.ts||0)-(a.ts||0));
         recs = merged;
       } else {
-        recs = newRecs;
+        recs = normNewRecs;
         // ローカルキャッシュにも保存（オフライン対応）
         try { localStorage.setItem('umiV5', JSON.stringify(recs.slice(0,200))); } catch(e) {}
       }
@@ -1776,12 +1788,27 @@ async function loadPtHistoryFromFirestore() {
 /* ============================================================
    定数・マスターデータ
    ============================================================ */
-const GOMI_TYPES = ['ペットボトル','缶','ビン','紙類','プラスチック片','発泡スチロール','タバコ','ライター','漁具','ロープ','ブイ','その他'];
+const GOMI_TYPES = ['ペットボトル','ビニール類','プラスチック片','発泡スチロール','紙類','缶・ビン','タバコ類','ライター','漁具','ロープ','フロート類','その他'];
 const EMAP = {
-  'ペットボトル':'🧴','缶':'🥫','ビン':'🍾','紙類':'📄',
-  'プラスチック片':'♻️','発泡スチロール':'🧊','タバコ':'🚬','ライター':'🪔',
-  '漁具':'🎣','ロープ':'🪢','ブイ':'⚪','その他':'❓'
+  'ペットボトル':'🧴','ビニール類':'🛍️','プラスチック片':'♻️','発泡スチロール':'🧊',
+  '紙類':'📄','缶・ビン':'🥫','タバコ類':'🚬','ライター':'🪔',
+  '漁具':'🎣','ロープ':'🪢','フロート類':'🛟','その他':'❓'
 };
+// 旧ゴミ種別 → 新ゴミ種別（カテゴリ統合・改称対応）
+const OLD_TYPE_MAP = {
+  '缶':'缶・ビン','ビン':'缶・ビン','タバコ':'タバコ類','ブイ':'フロート類'
+};
+function normalizeGomiType(t) {
+  return OLD_TYPE_MAP[t] || t;
+}
+function normalizeRecs(arr) {
+  if (!Array.isArray(arr)) return arr;
+  return arr.map(r => {
+    const nt = normalizeGomiType(r.type);
+    if (nt === r.type) return r;
+    return { ...r, type: nt, emoji: EMAP[nt] || r.emoji };
+  });
+}
 
 /* ポイント定義 */
 const PT = {
@@ -1808,7 +1835,7 @@ let recs = [];
     // → ログイン後のstartRealtimeSyncでFirestoreから正しいデータが来る
     if (s && !lastUID) {
       // 初回利用（UID未設定）の場合のみキャッシュを使う
-      recs = JSON.parse(s);
+      recs = normalizeRecs(JSON.parse(s));
     }
     // lastUIDがある場合はログイン後にFirestoreから取得するので空のまま
   } catch(e) { recs = []; }
@@ -1842,11 +1869,11 @@ let recs = [];
 
 function migrateType(t) {
   const map = {
-    'ペットボトル':'ペットボトル','ビン・缶':'缶','プラ袋':'プラスチック片',
+    'ペットボトル':'ペットボトル','ビン・缶':'缶・ビン','プラ袋':'プラスチック片',
     'ダンボール':'紙類','発泡スチロール':'発泡スチロール','ロープ・網':'ロープ',
-    'タバコ':'タバコ','家電・家具':'その他','その他':'その他'
+    'タバコ':'タバコ類','家電・家具':'その他','その他':'その他'
   };
-  return map[t] || t;
+  return normalizeGomiType(map[t] || t);
 }
 
 // ポイント履歴・ありがとうログは onAuthStateChanged でUID確認後に読み込む
@@ -2589,6 +2616,46 @@ let leafMarkers = {};
 const TILE_URL  = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const TILE_ATTR = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
+// マップスタイル定義（通常・グレー・ダーク・衛星）
+const MAP_STYLES = {
+  normal: {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attr: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19
+  },
+  gray: {
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    attr: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
+    maxZoom: 19
+  },
+  dark: {
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attr: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
+    maxZoom: 19
+  },
+  satellite: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attr: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics',
+    maxZoom: 19
+  }
+};
+let curMapStyle = 'normal';
+let curTileLayer = null;
+
+function setMapStyle(btn, styleKey) {
+  curMapStyle = styleKey;
+  document.querySelectorAll('#mapStyleBar .ms-btn').forEach(b => b.classList.remove('on'));
+  if (btn) btn.classList.add('on');
+  applyMapStyle();
+}
+
+function applyMapStyle() {
+  if (!leafMap) return;
+  const style = MAP_STYLES[curMapStyle] || MAP_STYLES.normal;
+  if (curTileLayer) { leafMap.removeLayer(curTileLayer); curTileLayer = null; }
+  curTileLayer = L.tileLayer(style.url, { attribution: style.attr, maxZoom: style.maxZoom }).addTo(leafMap);
+}
+
 function initMap(){
   if(leafMap) return;
   const mapEl=document.getElementById('mapEl');
@@ -2607,7 +2674,7 @@ function initMap(){
         fadeAnimation:false,
         markerZoomAnimation:false
       }).setView([center.lat,center.lng],14);
-      L.tileLayer(TILE_URL,{attribution:TILE_ATTR,maxZoom:19}).addTo(leafMap);
+      applyMapStyle();
 
       // 複数タイミングでinvalidateSizeを呼ぶ（iOS Safariのレンダリング遅延対策）
       [100,300,600,1000].forEach(ms => {
@@ -2665,9 +2732,9 @@ function setMapFilter(btn) {
 
 // マーカー色（種類別）
 const TYPE_COLORS = {
-  'ペットボトル':'#3B82F6','缶':'#EF4444','ビン':'#10B981','紙類':'#F59E0B',
-  'プラスチック片':'#8B5CF6','発泡スチロール':'#06B6D4','タバコ':'#A3A3A3','ライター':'#F97316',
-  '漁具':'#EC4899','ロープ':'#84CC16','ブイ':'#FBBF24','その他':'#6B7280'
+  'ペットボトル':'#3B82F6','ビニール類':'#22D3EE','プラスチック片':'#8B5CF6','発泡スチロール':'#06B6D4',
+  '紙類':'#F59E0B','缶・ビン':'#EF4444','タバコ類':'#A3A3A3','ライター':'#F97316',
+  '漁具':'#EC4899','ロープ':'#84CC16','フロート類':'#FBBF24','その他':'#6B7280'
 };
 
 function makeMarkerIcon(r){
