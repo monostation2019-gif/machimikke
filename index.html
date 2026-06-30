@@ -284,6 +284,36 @@ select.pf-input optgroup{background:var(--navy3);color:var(--teal);font-size:11p
 .rank-update{font-size:9px;color:var(--gray);text-align:right;letter-spacing:.5px;}
 .rank-empty{text-align:center;padding:40px 20px;color:var(--gray);font-size:13px;}
 
+/* AREA RANKING (町別・市別) */
+.rank-mode-seg{display:flex;gap:0;background:rgba(255,255,255,.05);border-radius:20px;padding:3px;border:1px solid rgba(14,165,160,.2);flex-shrink:0;}
+.rmseg{flex:1;padding:7px 4px;border-radius:16px;border:none;background:none;color:var(--gray);font-size:11px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:all .18s;}
+.rmseg.on{background:var(--teal);color:var(--navy);}
+.area-scope-seg{display:flex;gap:6px;flex-shrink:0;}
+.asg-btn{flex:1;padding:6px 4px;border-radius:10px;border:1px solid rgba(14,165,160,.25);background:rgba(255,255,255,.03);color:var(--gray);font-size:10px;font-weight:700;cursor:pointer;}
+.asg-btn.on{background:rgba(14,165,160,.18);color:var(--teal);border-color:var(--teal);}
+.area-card{background:var(--navy2);border-radius:14px;padding:12px 14px;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:8px;}
+.area-card.t1{border-color:rgba(255,215,0,.35);background:rgba(255,215,0,.06);}
+.area-card-top{display:flex;align-items:center;gap:10px;}
+.area-rank-num{font-family:'Oswald',sans-serif;font-size:18px;font-weight:700;color:var(--gray);min-width:22px;}
+.area-card.t1 .area-rank-num{color:#FFD700;}
+.area-name{font-size:14px;font-weight:700;flex:1;min-width:0;}
+.area-name .kind{font-size:9px;color:var(--teal);font-weight:400;margin-left:4px;}
+.area-density{text-align:right;flex-shrink:0;}
+.area-density .n{font-family:'Oswald',sans-serif;font-size:18px;font-weight:700;color:var(--amber);line-height:1;}
+.area-density .l{font-size:7.5px;color:var(--gray);}
+.area-stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:10.5px;color:var(--gray);}
+.area-stats-grid b{color:var(--white);font-weight:700;}
+.area-extra{font-size:10px;color:var(--gray);line-height:1.5;border-top:1px dashed rgba(255,255,255,.08);padding-top:6px;}
+.area-extra b{color:var(--teal);}
+.area-extra .blank{color:#56708a;font-style:italic;}
+.area-type-bars{display:flex;flex-wrap:wrap;gap:4px;}
+.area-type-chip{font-size:9px;background:rgba(255,255,255,.06);border-radius:8px;padding:2px 7px;color:var(--gray);}
+.area-type-chip b{color:var(--white);}
+.area-loading{font-size:10px;color:var(--gray);text-align:center;padding:6px;}
+.map-bound-toggle{position:absolute;right:8px;top:8px;z-index:500;background:rgba(10,22,40,.85);border:1px solid rgba(14,165,160,.35);border-radius:10px;padding:6px 8px;font-size:9px;color:var(--white);display:flex;flex-direction:column;gap:4px;}
+.map-bound-toggle label{display:flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap;}
+.map-bound-toggle input{margin:0;}
+
 /* MODAL */
 .modal-bg{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:9000;align-items:flex-end;justify-content:center;-webkit-tap-highlight-color:transparent;}
 .modal-bg.on{display:flex;}
@@ -480,6 +510,10 @@ select.pf-input optgroup{background:var(--navy3);color:var(--teal);font-size:11p
 <!-- ===== MAP ===== -->
 <div class="scr" id="scr-map" style="position:relative;height:100%;">
   <div id="mapEl"></div>
+  <div class="map-bound-toggle" id="mapBoundToggle">
+    <label><input type="checkbox" id="chkCityBound" checked onchange="toggleAreaBoundary('city',this.checked)">🟦 市の境界</label>
+    <label><input type="checkbox" id="chkTownBound" checked onchange="toggleAreaBoundary('town',this.checked)">🟧 町の境界</label>
+  </div>
   <!-- マップ上フィルターバー -->
   <div class="map-filter-bar" id="mapFilterBar">
     <button class="mf-btn on" data-f="all" onclick="setMapFilter(this)">🗺️ 全種類</button>
@@ -583,6 +617,13 @@ select.pf-input optgroup{background:var(--navy3);color:var(--teal);font-size:11p
 <div class="scr" id="scr-rank">
   <div class="rank-scroll">
     <div class="rank-inner">
+      <!-- ユーザー別 / エリア別 切り替え -->
+      <div class="rank-mode-seg">
+        <button class="rmseg on" id="rmseg-user" onclick="switchRankMode('user')">👤 ユーザー別</button>
+        <button class="rmseg"    id="rmseg-area" onclick="switchRankMode('area')">🏘️ 町・市別</button>
+      </div>
+
+      <div id="userRankBlock">
       <!-- モード切り替え（ポイント種別） -->
       <div class="rank-seg" id="rankSegRow">
         <button class="rseg on" id="rseg-total"   onclick="switchRank('total')">🏆 総合</button>
@@ -609,6 +650,17 @@ select.pf-input optgroup{background:var(--navy3);color:var(--teal);font-size:11p
       <div class="rank-rest-ttl" id="rankRestTtl" style="display:none">4位〜10位</div>
       <div class="rank-rest-list" id="rankRestList"></div>
       <div class="rank-update" id="rankUpdate"></div>
+      </div>
+
+      <div id="areaRankBlock" style="display:none;flex-direction:column;gap:10px;">
+        <div class="area-scope-seg">
+          <button class="asg-btn on" id="asg-city" onclick="switchAreaScope('city')">🏙️ 市別</button>
+          <button class="asg-btn"    id="asg-town" onclick="switchAreaScope('town')">🏘️ 町別</button>
+        </div>
+        <div style="font-size:9px;color:var(--gray);">人口・面積・有名な場所・特産品・歴史は外部データから自動取得を試みます（取得できない場合は空欄になります）</div>
+        <div class="area-loading" id="areaRankLoading" style="display:none;">読み込み中...</div>
+        <div id="areaRankList" style="display:flex;flex-direction:column;gap:10px;"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -2676,6 +2728,7 @@ function initMap(){
       }).setView([center.lat,center.lng],14);
       L.control.zoom({position:'bottomright'}).addTo(leafMap);
       applyMapStyle();
+      loadAreaBoundaries();
 
       // 複数タイミングでinvalidateSizeを呼ぶ（iOS Safariのレンダリング遅延対策）
       [100,300,600,1000].forEach(ms => {
@@ -3088,7 +3141,7 @@ function goTab(t){
     });
   }
   if(t==='list') renderList();
-  if(t==='rank') renderRanking();
+  if(t==='rank') { renderRanking(); if(typeof refreshAreaRankingIfNeeded==='function') refreshAreaRankingIfNeeded(); }
   if(t==='hot')  { initHotspot(); }
   if(t==='past') { renderPastData(); }
   if(t==='prof') { updateMyStats(); loadMyReplies(); }
@@ -4352,6 +4405,315 @@ getGPS();
   });
 
 })();
+
+/* ============================================================
+   町別・市別 境界表示 ＆ エリア別ランキング機能
+   ============================================================
+   - 市の境界：dataofjapan/land (GitHub公開GeoJSON, 国交省N03データ由来) を実行時に取得
+   - 町の境界：e-Stat 小地域境界データAPIを実行時に取得（取得できない場合は市境界のみ表示）
+   - 人口/面積/有名な場所/特産品/歴史：Wikipedia日本語版APIから自動取得を試み、
+     失敗時や該当データが無い場合は空欄表示にフォールバックします。
+   - 海までの距離：鳥羽市・志摩市沿岸の参考座標群との直線距離（ハーバサイン）の最小値で概算計算。
+   ============================================================ */
+const AREA_TARGET_CITIES = ['鳥羽市','志摩市'];
+// 三重県（pref code 24）の市区町村境界（国土数値情報N03由来・簡略化済み）GitHub公開データ
+const CITY_BOUNDARY_URL = 'https://raw.githubusercontent.com/dataofjapan/land/master/24.json';
+// e-Stat 小地域（町丁・字等）境界データ。市区町村コード: 鳥羽市=24205, 志摩市=24216
+const TOWN_BOUNDARY_CITY_CODES = { '鳥羽市':'24205', '志摩市':'24216' };
+function townBoundaryUrl(code){
+  return `https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=${code}&coordSys=1&format=geojson&downloadType=5`;
+}
+
+// 鳥羽市・志摩市沿岸の参考座標（海までの直線距離の概算計算用）
+const COAST_REF_POINTS = [
+  {lat:34.4884,lng:136.8438},{lat:34.4731,lng:136.8307},{lat:34.4580,lng:136.8123}, // 鳥羽湾周辺
+  {lat:34.4290,lng:136.8444},{lat:34.4012,lng:136.8336},{lat:34.3702,lng:136.8235}, // 答志島〜安乗崎
+  {lat:34.3398,lng:136.8459},{lat:34.3104,lng:136.8602},{lat:34.2814,lng:136.8541}, // 的矢湾〜英虞湾
+  {lat:34.2657,lng:136.8133},{lat:34.2480,lng:136.7654},{lat:34.2706,lng:136.7271}, // 大王崎〜志摩半島南
+  {lat:34.3258,lng:136.7174},{lat:34.3636,lng:136.7548},{lat:34.4079,lng:136.7732}, // 浜島〜五ヶ所湾
+];
+
+let _cityBoundaryGeo = null;
+let _townBoundaryGeo = { '鳥羽市':null, '志摩市':null };
+let _cityBoundaryLayer = null;
+let _townBoundaryLayer = null;
+let _boundaryLoadStarted = false;
+let _boundaryLoadDone = { city:false, town:false };
+let rankMode = 'user';
+let areaScope = 'city';
+const _areaInfoCache = {}; // name -> {population,areaKm2,famous,specialty,history} | 'failed'
+
+function switchRankMode(mode){
+  rankMode = mode;
+  document.getElementById('rmseg-user').classList.toggle('on', mode==='user');
+  document.getElementById('rmseg-area').classList.toggle('on', mode==='area');
+  document.getElementById('userRankBlock').style.display = mode==='user' ? '' : 'none';
+  document.getElementById('areaRankBlock').style.display = mode==='area' ? 'flex' : 'none';
+  if(mode==='area') refreshAreaRankingIfNeeded();
+}
+function switchAreaScope(scope){
+  areaScope = scope;
+  document.getElementById('asg-city').classList.toggle('on', scope==='city');
+  document.getElementById('asg-town').classList.toggle('on', scope==='town');
+  renderAreaRanking();
+}
+function refreshAreaRankingIfNeeded(){
+  if(rankMode !== 'area') return;
+  loadAreaBoundaries().then(()=> renderAreaRanking());
+}
+
+/* ---- 境界データ読み込み ---- */
+async function loadAreaBoundaries(){
+  if(_boundaryLoadStarted) return;
+  _boundaryLoadStarted = true;
+  // 市の境界
+  try {
+    const res = await fetch(CITY_BOUNDARY_URL);
+    if(!res.ok) throw new Error('city boundary fetch failed: ' + res.status);
+    const geo = await res.json();
+    const feats = (geo.features || []).filter(f => {
+      const name = f.properties && (f.properties.N03_004 || f.properties.city || f.properties.name);
+      return AREA_TARGET_CITIES.includes(name);
+    });
+    feats.forEach(f => { f.properties._areaName = f.properties.N03_004 || f.properties.city || f.properties.name; });
+    _cityBoundaryGeo = { type:'FeatureCollection', features: feats };
+    _boundaryLoadDone.city = feats.length > 0;
+  } catch(e) {
+    console.warn('市境界データの取得に失敗しました。境界線なしで継続します。', e);
+    _cityBoundaryGeo = null;
+    _boundaryLoadDone.city = false;
+  }
+  drawCityBoundary();
+
+  // 町の境界（市ごとに試行）
+  for (const cityName of AREA_TARGET_CITIES) {
+    try {
+      const code = TOWN_BOUNDARY_CITY_CODES[cityName];
+      const res = await fetch(townBoundaryUrl(code));
+      if(!res.ok) throw new Error('town boundary fetch failed: ' + res.status);
+      const geo = await res.json();
+      if(!geo || !Array.isArray(geo.features) || !geo.features.length) throw new Error('empty town boundary');
+      geo.features.forEach(f => {
+        f.properties = f.properties || {};
+        f.properties._cityName = cityName;
+        f.properties._areaName = f.properties.S_NAME || f.properties.KEY_CODE || f.properties.name || ('町丁字' + (f.properties.KEY_CODE||''));
+      });
+      _townBoundaryGeo[cityName] = geo;
+    } catch(e) {
+      console.warn(`${cityName}の町丁境界データの取得に失敗しました（町別ランキングは市内合算で代替します）`, e);
+      _townBoundaryGeo[cityName] = null;
+    }
+  }
+  _boundaryLoadDone.town = Object.values(_townBoundaryGeo).some(g => g);
+  drawTownBoundary();
+}
+
+function drawCityBoundary(){
+  if(!leafMap || !_cityBoundaryGeo) return;
+  if(_cityBoundaryLayer) { leafMap.removeLayer(_cityBoundaryLayer); _cityBoundaryLayer = null; }
+  _cityBoundaryLayer = L.geoJSON(_cityBoundaryGeo, {
+    style: { color:'#3B82F6', weight:3, fillColor:'#3B82F6', fillOpacity:.06, dashArray:null },
+    onEachFeature: (f, layer) => layer.bindTooltip(f.properties._areaName, {sticky:true})
+  });
+  if(document.getElementById('chkCityBound') && document.getElementById('chkCityBound').checked) {
+    _cityBoundaryLayer.addTo(leafMap);
+  }
+}
+function drawTownBoundary(){
+  if(!leafMap) return;
+  if(_townBoundaryLayer) { leafMap.removeLayer(_townBoundaryLayer); _townBoundaryLayer = null; }
+  const allFeats = [];
+  Object.values(_townBoundaryGeo).forEach(g => { if(g) allFeats.push(...g.features); });
+  if(!allFeats.length) return;
+  _townBoundaryLayer = L.geoJSON({ type:'FeatureCollection', features: allFeats }, {
+    style: { color:'#F59E0B', weight:1.5, fillColor:'#F59E0B', fillOpacity:.04, dashArray:'4,3' },
+    onEachFeature: (f, layer) => layer.bindTooltip(f.properties._areaName, {sticky:true})
+  });
+  if(document.getElementById('chkTownBound') && document.getElementById('chkTownBound').checked) {
+    _townBoundaryLayer.addTo(leafMap);
+  }
+}
+function toggleAreaBoundary(kind, on){
+  if(!leafMap) return;
+  if(kind === 'city' && _cityBoundaryLayer) { on ? _cityBoundaryLayer.addTo(leafMap) : leafMap.removeLayer(_cityBoundaryLayer); }
+  if(kind === 'town' && _townBoundaryLayer) { on ? _townBoundaryLayer.addTo(leafMap) : leafMap.removeLayer(_townBoundaryLayer); }
+}
+
+/* ---- 点がポリゴン内にあるか判定（ray casting法） ---- */
+function _pointInRing(pt, ring){
+  let inside = false;
+  for (let i=0, j=ring.length-1; i<ring.length; j=i++) {
+    const xi=ring[i][0], yi=ring[i][1], xj=ring[j][0], yj=ring[j][1];
+    const intersect = ((yi>pt[1]) !== (yj>pt[1])) && (pt[0] < (xj-xi)*(pt[1]-yi)/((yj-yi)||1e-12) + xi);
+    if(intersect) inside = !inside;
+  }
+  return inside;
+}
+function _pointInGeometry(lng, lat, geometry){
+  if(!geometry) return false;
+  const pt = [lng, lat];
+  if(geometry.type === 'Polygon'){
+    if(!_pointInRing(pt, geometry.coordinates[0])) return false;
+    for(let i=1;i<geometry.coordinates.length;i++){ if(_pointInRing(pt, geometry.coordinates[i])) return false; }
+    return true;
+  }
+  if(geometry.type === 'MultiPolygon'){
+    return geometry.coordinates.some(poly => {
+      if(!_pointInRing(pt, poly[0])) return false;
+      for(let i=1;i<poly.length;i++){ if(_pointInRing(pt, poly[i])) return false; }
+      return true;
+    });
+  }
+  return false;
+}
+function findCityForPoint(lat,lng){
+  if(_cityBoundaryGeo){
+    const f = _cityBoundaryGeo.features.find(f => _pointInGeometry(lng,lat,f.geometry));
+    if(f) return f.properties._areaName;
+  }
+  return null;
+}
+function findTownForPoint(lat,lng,cityName){
+  const geo = cityName ? _townBoundaryGeo[cityName] : null;
+  if(!geo) return null;
+  const f = geo.features.find(f => _pointInGeometry(lng,lat,f.geometry));
+  return f ? f.properties._areaName : null;
+}
+
+/* ---- 海までの直線距離（km, 概算） ---- */
+function distanceToSeaKm(lat,lng){
+  let min = Infinity;
+  COAST_REF_POINTS.forEach(p => { const d = haverDist(lat,lng,p.lat,p.lng); if(d<min) min=d; });
+  return isFinite(min) ? min : null;
+}
+
+/* ---- Wikipedia日本語版から人口・面積・有名な場所・特産品・歴史を自動取得 ---- */
+async function fetchAreaWikiInfo(name){
+  if(_areaInfoCache[name]) return _areaInfoCache[name];
+  const result = { population:null, areaKm2:null, famous:[], specialty:[], history:'' };
+  try {
+    const apiUrl = 'https://ja.wikipedia.org/w/api.php?action=query&prop=revisions&rvprop=content&rvslots=main&titles='
+      + encodeURIComponent(name) + '&format=json&origin=*';
+    const res = await fetch(apiUrl);
+    if(!res.ok) throw new Error('wiki fetch failed');
+    const data = await res.json();
+    const pages = data.query && data.query.pages;
+    const page = pages && Object.values(pages)[0];
+    const wikitext = page && page.revisions && page.revisions[0].slots.main['*'];
+    if(!wikitext) throw new Error('no wikitext');
+
+    const popM = wikitext.match(/\|\s*人口\s*=\s*([\d,，]+)/);
+    if(popM) result.population = parseInt(popM[1].replace(/[,，]/g,''), 10) || null;
+
+    const areaM = wikitext.match(/\|\s*面積\s*=\s*([\d.]+)/);
+    if(areaM) result.areaKm2 = parseFloat(areaM[1]) || null;
+
+    // 特産品・名所（記事中の「観光」「特産」関連の箇条書きを軽く拾う。無ければ空のまま）
+    const famousM = wikitext.match(/==\s*(観光地?|名所|観光)\s*==([\s\S]{0,600}?)(==|$)/);
+    if(famousM) {
+      result.famous = [...famousM[2].matchAll(/\[\[([^\]|]+)/g)].map(m=>m[1]).slice(0,6);
+    }
+    const specM = wikitext.match(/==\s*(特産品?|名産品?|産業)\s*==([\s\S]{0,600}?)(==|$)/);
+    if(specM) {
+      result.specialty = [...specM[2].matchAll(/\[\[([^\]|]+)/g)].map(m=>m[1]).slice(0,6);
+    }
+    const histM = wikitext.match(/==\s*歴史\s*==([\s\S]{0,400}?)(==|$)/);
+    if(histM) {
+      result.history = histM[1].replace(/\{\{[^}]*\}\}/g,'').replace(/\[\[([^\]|]+)(\|[^\]]+)?\]\]/g,'$1')
+        .replace(/'{2,}/g,'').replace(/\n+/g,' ').trim().slice(0,160);
+    }
+  } catch(e) {
+    console.warn(`「${name}」の自動データ取得に失敗しました。空欄表示にします。`, e);
+    _areaInfoCache[name] = 'failed';
+    return 'failed';
+  }
+  _areaInfoCache[name] = result;
+  return result;
+}
+
+/* ---- エリア別ランキング集計・描画 ---- */
+async function renderAreaRanking(){
+  const wrap = document.getElementById('areaRankList');
+  const loading = document.getElementById('areaRankLoading');
+  if(!wrap) return;
+  if(!_boundaryLoadDone.city && !_cityBoundaryGeo) {
+    wrap.innerHTML = '<div class="rank-empty">境界データを取得できませんでした。ネット接続をご確認の上、再度お試しください。</div>';
+    return;
+  }
+  loading.style.display = 'block';
+  wrap.innerHTML = '';
+
+  // 集計：エリア名 -> { city, count, types:{} }
+  const groups = {};
+  recs.forEach(r => {
+    if(typeof r.lat !== 'number' || typeof r.lng !== 'number') return;
+    const cityName = findCityForPoint(r.lat, r.lng);
+    if(!cityName) return; // 対象エリア外の記録は集計しない
+    let key, label, kindLabel;
+    if(areaScope === 'city') {
+      key = cityName; label = cityName; kindLabel = '市';
+    } else {
+      const townName = findTownForPoint(r.lat, r.lng, cityName);
+      key = townName ? (cityName + '/' + townName) : (cityName + '（町丁字データ未取得）');
+      label = townName || cityName;
+      kindLabel = townName ? '町' : '市（代替集計）';
+    }
+    if(!groups[key]) groups[key] = { label, kindLabel, cityName, count:0, types:{}, lats:[], lngs:[] };
+    groups[key].count++;
+    groups[key].types[r.type] = (groups[key].types[r.type]||0) + 1;
+    groups[key].lats.push(r.lat); groups[key].lngs.push(r.lng);
+  });
+
+  const groupArr = Object.values(groups).sort((a,b)=> b.count - a.count);
+  if(!groupArr.length) {
+    loading.style.display = 'none';
+    wrap.innerHTML = '<div class="rank-empty">対象エリア（鳥羽市・志摩市）内の記録がまだありません。</div>';
+    return;
+  }
+
+  // 各エリアの付加情報を取得（人口・面積・名所・特産・歴史）→density計算
+  for (let i=0; i<groupArr.length; i++) {
+    const g = groupArr[i];
+    const wikiName = g.label;
+    const info = await fetchAreaWikiInfo(wikiName);
+    g.info = info === 'failed' ? null : info;
+    g.density = (g.info && g.info.areaKm2) ? +(g.count / g.info.areaKm2).toFixed(2) : null;
+    const clat = g.lats.reduce((s,v)=>s+v,0)/g.lats.length;
+    const clng = g.lngs.reduce((s,v)=>s+v,0)/g.lngs.length;
+    g.seaDist = +(distanceToSeaKm(clat,clng)).toFixed(2);
+  }
+
+  loading.style.display = 'none';
+  wrap.innerHTML = groupArr.map((g,idx) => {
+    const typeChips = Object.entries(g.types).sort((a,b)=>b[1]-a[1])
+      .map(([t,c]) => `<span class="area-type-chip">${EMAP[t]||'❓'}${t} <b>${c}</b></span>`).join('');
+    const info = g.info;
+    const fmtList = arr => (arr && arr.length) ? arr.join('、') : '<span class="blank">情報なし</span>';
+    return `<div class="area-card ${idx===0?'t1':''}">
+      <div class="area-card-top">
+        <div class="area-rank-num">${idx+1}</div>
+        <div class="area-name">${g.label}<span class="kind">${g.kindLabel}</span></div>
+        <div class="area-density">
+          <div class="n">${g.density!==null ? g.density : '―'}</div>
+          <div class="l">件/km²（密度）</div>
+        </div>
+      </div>
+      <div class="area-stats-grid">
+        <div>ゴミ累計件数：<b>${g.count}件</b></div>
+        <div>海までの距離：<b>約${g.seaDist}km</b></div>
+        <div>人口：<b>${info && info.population ? info.population.toLocaleString()+'人' : '<span class="blank">不明</span>'}</b></div>
+        <div>面積：<b>${info && info.areaKm2 ? info.areaKm2+'km²' : '<span class="blank">不明</span>'}</b></div>
+      </div>
+      <div class="area-type-bars">${typeChips}</div>
+      <div class="area-extra">
+        <b>有名な場所：</b>${fmtList(info && info.famous)}<br>
+        <b>特産品：</b>${fmtList(info && info.specialty)}<br>
+        <b>歴史：</b>${(info && info.history) ? info.history+'…' : '<span class="blank">情報なし</span>'}
+      </div>
+    </div>`;
+  }).join('');
+}
+/* ============================================================ */
 
 </script>
 </body>
