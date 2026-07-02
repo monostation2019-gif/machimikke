@@ -1,67 +1,487 @@
-# 海ゴミ探究ノート（HTML/JS版・土台）
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>海ゴミ探究ノート</title>
+<meta name="description" content="伊勢志摩の海ゴミを記録・共有するPWAアプリ「海ゴミ探究ノート」">
+<meta name="theme-color" content="#0277BD">
 
-ターミナルもインストール作業も不要です。ファイルを編集して、Vercelにアップロードするだけで動きます。
+<!-- PWA設定ファイル -->
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="icons/Icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="うみごみ">
 
-## 構成
-```
-umigomi_web/
-├── index.html      ← アプリ本体（これ1つに画面・処理すべてが入っています）
-├── manifest.json    ← PWA設定
-├── sw.js            ← オフライン対応（そのままでOK、触らなくて大丈夫）
-├── favicon.png
-└── icons/           ← アプリアイコン・初期プロフィール画像
-```
+<style>
+  /* =========================================================
+     全体のスタイル定義
+     Material Design風のシンプルな配色・角丸・影を使用。
+     後から機能追加してもデザインが崩れにくいよう、
+     色や余白は CSS変数(:root) にまとめている。
+     ========================================================= */
+  :root {
+    --color-primary: #0277BD;      /* 海をイメージしたブルー */
+    --color-primary-light: #E1F5FE;
+    --color-surface: #FFFFFF;
+    --color-bg: #F5F7FA;
+    --color-text: #1A1C1E;
+    --color-text-sub: #6B7280;
+    --color-outline: #E0E3E7;
+    --nav-height: 64px;
+    --header-height: 56px;
+  }
 
-## やることは2つだけです
+  * { box-sizing: border-box; }
 
-### ① Firebaseの接続情報を書き込む
+  body {
+    margin: 0;
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+    background: var(--color-bg);
+    color: var(--color-text);
+    /* iPhoneのノッチ・ホームバー対応（Safe Area） */
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 
-1. `index.html` を **メモ帳（またはVSCode）** で開く
-2. `Ctrl + F` で `REPLACE_ME` を検索する（6箇所あります）
-3. Firebaseコンソール（https://console.firebase.google.com）を開き、
-   - 左上の**⚙️歯車アイコン → プロジェクトの設定**をクリック
-   - 下の方の「マイアプリ」に、既にWebアプリが登録されていればそれをクリック
-     （無ければ `</>` アイコンをクリックして新規登録）
-   - 表示される `firebaseConfig = { ... }` の中身をまるごとコピー
-4. `index.html` 内の以下の部分を、コピーした内容で置き換えて保存する
+  /* ---------- ヘッダー ---------- */
+  header.app-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    height: var(--header-height);
+    background: var(--color-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 16px;
+    border-bottom: 1px solid var(--color-outline);
+    padding-top: env(safe-area-inset-top);
+  }
 
-```js
+  /* ---------- 画面(タブ)の切り替え ---------- */
+  /* .screen は基本非表示。.screen.active のときだけ表示する。 */
+  main {
+    max-width: 600px; /* レスポンシブ: 大画面でも横幅を制限して読みやすくする */
+    margin: 0 auto;
+    padding: 24px 16px calc(var(--nav-height) + 24px);
+    min-height: calc(100vh - var(--header-height));
+  }
+  .screen { display: none; }
+  .screen.active { display: block; animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* ---------- ホーム画面 ---------- */
+  .hero {
+    text-align: center;
+    padding: 48px 16px;
+  }
+  .hero .material-emoji { font-size: 48px; }
+  .hero h1 { font-size: 20px; margin: 12px 0 4px; }
+  .hero p { color: var(--color-text-sub); margin: 0; }
+
+  /* ---------- プレースホルダー画面(地図・記録一覧) ---------- */
+  .placeholder {
+    text-align: center;
+    padding: 64px 16px;
+    color: var(--color-text-sub);
+  }
+  .placeholder .icon { font-size: 48px; opacity: 0.5; }
+
+  /* ---------- カード共通 ---------- */
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-outline);
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  /* ---------- プロフィール画面 ---------- */
+  .profile-avatar-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+  .profile-avatar {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--color-primary-light);
+    border: 2px solid var(--color-primary);
+    cursor: pointer;
+  }
+  .info-row { padding: 10px 0; border-bottom: 1px solid var(--color-outline); }
+  .info-row:last-child { border-bottom: none; }
+  .info-row .label { font-size: 12px; color: var(--color-text-sub); }
+  .info-row .value { font-size: 15px; margin-top: 2px; word-break: break-all; }
+  .edit-form input, .edit-form textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--color-outline);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    margin-top: 4px;
+    margin-bottom: 12px;
+  }
+  .btn {
+    display: inline-block;
+    background: var(--color-primary);
+    color: #fff;
+    border: none;
+    border-radius: 24px;
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  .btn:active { opacity: 0.8; }
+  .btn-text {
+    background: none;
+    border: none;
+    color: var(--color-primary);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 8px;
+  }
+
+  /* ---------- ボトムナビゲーション ---------- */
+  nav.bottom-nav {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    height: calc(var(--nav-height) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-outline);
+    display: flex;
+    z-index: 10;
+  }
+  nav.bottom-nav button {
+    flex: 1;
+    background: none;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: 11px;
+    color: var(--color-text-sub);
+    cursor: pointer;
+    padding: 4px 0;
+  }
+  nav.bottom-nav button .nav-icon { font-size: 20px; }
+  nav.bottom-nav button.active { color: var(--color-primary); font-weight: bold; }
+
+  /* ---------- ローディング/エラー(スプラッシュ) ---------- */
+  #splash {
+    position: fixed;
+    inset: 0;
+    background: var(--color-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 100;
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--color-outline);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #splash.hidden { display: none; }
+  #splash .error-box { text-align: center; color: #B00020; padding: 0 24px; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     起動時のスプラッシュ（ログイン処理が終わるまで表示）
+     ============================================================ -->
+<div id="splash">
+  <div class="spinner"></div>
+  <div>準備中…</div>
+  <div class="error-box" id="splashError" style="display:none;"></div>
+</div>
+
+<!-- ============================================================
+     ヘッダー
+     ============================================================ -->
+<header class="app-bar" id="appHeader">海ゴミ探究ノート</header>
+
+<!-- ============================================================
+     各画面（タブ）
+     ============================================================ -->
+<main>
+
+  <!-- ホーム -->
+  <section class="screen active" id="screen-home">
+    <div class="hero">
+      <div class="material-emoji">🌊</div>
+      <h1>ようこそ！</h1>
+      <p>ここにホームコンテンツが表示されます。</p>
+    </div>
+  </section>
+
+  <!-- 地図（プレースホルダー） -->
+  <section class="screen" id="screen-map">
+    <div class="placeholder">
+      <div class="icon">🗺️</div>
+      <p>地図機能は今後実装予定です</p>
+    </div>
+  </section>
+
+  <!-- 記録一覧（プレースホルダー） -->
+  <section class="screen" id="screen-records">
+    <div class="placeholder">
+      <div class="icon">📋</div>
+      <p>記録一覧機能は今後実装予定です</p>
+    </div>
+  </section>
+
+  <!-- プロフィール -->
+  <section class="screen" id="screen-profile">
+    <div class="profile-avatar-wrap">
+      <img class="profile-avatar" id="profileAvatarImg" src="icons/default_avatar.png" alt="プロフィール画像"
+           onclick="alert('画像変更機能は今後実装予定です');">
+    </div>
+
+    <!-- 表示モード -->
+    <div class="card" id="profileViewCard">
+      <div class="info-row">
+        <div class="label">ニックネーム</div>
+        <div class="value" id="viewNickname">-</div>
+      </div>
+      <div class="info-row">
+        <div class="label">ひとこと</div>
+        <div class="value" id="viewComment">-</div>
+      </div>
+      <div class="info-row">
+        <div class="label">作成日時</div>
+        <div class="value" id="viewCreatedAt">-</div>
+      </div>
+      <div class="info-row">
+        <div class="label">更新日時</div>
+        <div class="value" id="viewUpdatedAt">-</div>
+      </div>
+      <div style="text-align:right; margin-top:12px;">
+        <button class="btn" onclick="enterEditMode()">編集する</button>
+      </div>
+    </div>
+
+    <!-- 編集モード（普段は非表示） -->
+    <div class="card edit-form" id="profileEditCard" style="display:none;">
+      <label>ニックネーム</label>
+      <input type="text" id="editNickname" maxlength="20">
+      <label>ひとこと</label>
+      <textarea id="editComment" rows="3" maxlength="100"></textarea>
+      <div style="text-align:right;">
+        <button class="btn-text" onclick="cancelEditMode()">キャンセル</button>
+        <button class="btn" onclick="saveProfile()">保存する</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============================================================
+     ボトムナビゲーション
+     ============================================================ -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" data-screen="home" onclick="switchScreen('home')">
+    <span class="nav-icon">🏠</span><span>ホーム</span>
+  </button>
+  <button class="nav-btn" data-screen="map" onclick="switchScreen('map')">
+    <span class="nav-icon">🗺️</span><span>地図</span>
+  </button>
+  <button class="nav-btn" data-screen="records" onclick="switchScreen('records')">
+    <span class="nav-icon">📋</span><span>記録一覧</span>
+  </button>
+  <button class="nav-btn" data-screen="profile" onclick="switchScreen('profile')">
+    <span class="nav-icon">👤</span><span>プロフィール</span>
+  </button>
+</nav>
+
+<!-- ============================================================
+     Firebase SDK（compat版=グローバル変数方式）
+     ES Modules(import文)を使わないため、file://で直接開いても
+     CORSエラーが出にくく、初心者でも動作確認しやすい。
+     ============================================================ -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<script>
+/* =============================================================
+   ★★★ ここを自分のFirebaseプロジェクトの値に書き換えてください ★★★
+   取得場所: Firebaseコンソール →（歯車アイコン）プロジェクトの設定
+            → 「全般」タブ → 「マイアプリ」→ 該当のWebアプリ
+            → 「SDK の設定と構成」に表示されるオブジェクトをコピー
+   ============================================================= */
 const firebaseConfig = {
-  apiKey: "REPLACE_ME",
-  authDomain: "REPLACE_ME.firebaseapp.com",
-  projectId: "REPLACE_ME",
-  storageBucket: "REPLACE_ME.appspot.com",
-  messagingSenderId: "REPLACE_ME",
-  appId: "REPLACE_ME"
+  apiKey: "AIzaSyDB_SCHBUHACDJSjmn6bY2rR8vc2Sabjpg",
+  authDomain: "umigomi-web.firebaseapp.com",
+  projectId: "umigomi-web",
+  storageBucket: "umigomi-web.firebasestorage.app",
+  messagingSenderId: "104498907704",
+  appId: "1:104498907704:web:eab43b09887d7d3fed34cd"
 };
-```
 
-### ② Firebaseコンソールで2つだけ設定を確認する
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-- **Authentication** → 「Sign-in method」タブ → **「匿名」を有効化**
-- **Firestore Database** が作成済みであること（無ければ「データベースを作成」）
+/* =============================================================
+   定数（Firestoreのコレクション名・フィールド名を1箇所に集約）
+   ============================================================= */
+const USERS_COLLECTION = "users";
+const DEFAULT_NICKNAME = "ゲスト";
+const DEFAULT_COMMENT = "";
+const DEFAULT_ICON = "icons/default_avatar.png";
 
-## 動作確認の方法
+/* 現在のプロフィールをメモリ上にも保持しておく（編集フォームの初期値等に使う） */
+let currentProfile = null;
 
-**方法A（一番簡単）：そのままダブルクリックで開く**
-`index.html` をダブルクリックしてブラウザで開くだけで動作確認できます。
-（PWAのオフライン機能だけは、この方法だとオフには動きませんが、ログイン・プロフィール表示は問題なく確認できます）
+/* =============================================================
+   1. 認証: 起動時に自動ログイン（初回のみ匿名ユーザー作成）
+   ============================================================= */
+auth.onAuthStateChanged(async (user) => {
+  if (user) {
+    // ログイン済み（初回作成 or 再訪問による自動ログイン）
+    try {
+      await loadOrCreateProfile(user.uid);
+      hideSplash();
+    } catch (e) {
+      showSplashError("データの取得に失敗しました: " + e.message);
+    }
+  } else {
+    // 未ログイン → 匿名ログインを試みる
+    try {
+      await auth.signInAnonymously();
+      // 成功すると再度この onAuthStateChanged が呼ばれて上のifに入る
+    } catch (e) {
+      showSplashError("ログインに失敗しました: " + e.message);
+    }
+  }
+});
 
-**方法B（本番と同じ環境で確認したい場合）：Vercelにアップロード**
-今までと同じように、`umigomi_web` フォルダを丸ごとVercelにドラッグ＆ドロップしてください。
-これでURLが発行され、スマホからもPWAとしてインストールして確認できます。
+function hideSplash() {
+  document.getElementById("splash").classList.add("hidden");
+}
+function showSplashError(message) {
+  const errBox = document.getElementById("splashError");
+  errBox.textContent = message + "\n（画面下部の手順でFirebase設定を確認してください）";
+  errBox.style.display = "block";
+  document.querySelector("#splash .spinner").style.display = "none";
+  document.querySelector("#splash div:nth-child(2)").style.display = "none";
+}
 
-## 動かない時のチェックリスト
+/* =============================================================
+   2. Firestore: プロフィールの取得 or 初期作成
+   ============================================================= */
+async function loadOrCreateProfile(uid) {
+  const docRef = db.collection(USERS_COLLECTION).doc(uid);
+  const snapshot = await docRef.get();
 
-| 症状 | 原因の可能性 |
-|---|---|
-| ずっと「準備中…」のまま | `REPLACE_ME` が残っている / Firebaseの値が間違っている |
-| 赤い文字でエラーが出る | エラー文をそのままコピーして質問してください |
-| ログインできない | Authentication の「匿名」が無効になっている |
-| プロフィールが表示されない | Firestore Database が作成されていない |
+  if (snapshot.exists) {
+    currentProfile = snapshot.data();
+  } else {
+    // 初回ログイン: 初期プロフィールを作成
+    const now = firebase.firestore.Timestamp.now();
+    currentProfile = {
+      uid: uid,
+      nickname: DEFAULT_NICKNAME,
+      iconUrl: DEFAULT_ICON,
+      comment: DEFAULT_COMMENT,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await docRef.set(currentProfile);
+  }
+  renderProfile();
+}
 
-## 今後の拡張予定
+/* =============================================================
+   3. プロフィール画面への反映
+   ============================================================= */
+function renderProfile() {
+  if (!currentProfile) return;
+  document.getElementById("viewNickname").textContent = currentProfile.nickname;
+  document.getElementById("viewComment").textContent = currentProfile.comment || "（未設定）";
+  document.getElementById("viewCreatedAt").textContent = formatTimestamp(currentProfile.createdAt);
+  document.getElementById("viewUpdatedAt").textContent = formatTimestamp(currentProfile.updatedAt);
+  document.getElementById("profileAvatarImg").src = currentProfile.iconUrl || DEFAULT_ICON;
+}
 
-- 地図タブ・記録一覧タブは今は仮表示のみです
-- プロフィール画像のアップロードは「編集する」→保存の仕組みは既にあるので、
-  画像選択機能を追加すれば `iconUrl` を更新するだけで反映されます
+function formatTimestamp(ts) {
+  if (!ts) return "-";
+  const date = ts.toDate ? ts.toDate() : new Date(ts);
+  return date.toLocaleString("ja-JP");
+}
+
+/* =============================================================
+   4. プロフィール編集
+   ============================================================= */
+function enterEditMode() {
+  document.getElementById("editNickname").value = currentProfile.nickname;
+  document.getElementById("editComment").value = currentProfile.comment || "";
+  document.getElementById("profileViewCard").style.display = "none";
+  document.getElementById("profileEditCard").style.display = "block";
+}
+function cancelEditMode() {
+  document.getElementById("profileViewCard").style.display = "block";
+  document.getElementById("profileEditCard").style.display = "none";
+}
+async function saveProfile() {
+  const uid = auth.currentUser.uid;
+  const nickname = document.getElementById("editNickname").value.trim() || DEFAULT_NICKNAME;
+  const comment = document.getElementById("editComment").value.trim();
+
+  const updateData = {
+    nickname: nickname,
+    comment: comment,
+    updatedAt: firebase.firestore.Timestamp.now(),
+  };
+
+  await db.collection(USERS_COLLECTION).doc(uid).update(updateData);
+
+  // ローカルの表示も即時反映
+  currentProfile = { ...currentProfile, ...updateData };
+  renderProfile();
+  cancelEditMode();
+}
+
+/* =============================================================
+   5. 画面(タブ)切り替え
+   ============================================================= */
+function switchScreen(name) {
+  document.querySelectorAll(".screen").forEach((el) => el.classList.remove("active"));
+  document.getElementById("screen-" + name).classList.add("active");
+
+  document.querySelectorAll(".nav-btn").forEach((btn) => btn.classList.remove("active"));
+  document.querySelector('.nav-btn[data-screen="' + name + '"]').classList.add("active");
+}
+
+/* =============================================================
+   6. PWA用のService Worker登録
+   file://で開いた場合は登録できないため、その場合は静かにスキップする
+   （httpsで公開(Vercel等)した後は自動的に有効になる）
+   ============================================================= */
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {
+      // 失敗してもアプリ自体は問題なく動くので何もしない
+    });
+  });
+}
+</script>
+
+</body>
+</html>
