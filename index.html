@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>海ゴミ探究ノート</title>
 <meta name="description" content="伊勢志摩の海ゴミを記録・共有するPWAアプリ「海ゴミ探究ノート」">
-<meta name="theme-color" content="#0277BD">
+<meta name="theme-color" content="#2E7D6B">
 
 <!-- PWA設定ファイル -->
 <link rel="manifest" href="manifest.json">
@@ -23,13 +23,13 @@
      色や余白は CSS変数(:root) にまとめている。
      ========================================================= */
   :root {
-    --color-primary: #0277BD;      /* 海をイメージしたブルー */
-    --color-primary-light: #E1F5FE;
-    --color-surface: #FFFFFF;
-    --color-bg: #F5F7FA;
-    --color-text: #1A1C1E;
-    --color-text-sub: #6B7280;
-    --color-outline: #E0E3E7;
+    --color-primary: #2E7D6B;      /* 海藻・波打ち際をイメージした落ち着いたティール */
+    --color-primary-light: #E3EFE9;
+    --color-surface: #FCFBF7;      /* 純白を避けたやわらかいオフホワイト */
+    --color-bg: #F1F0E8;           /* 目に優しい、砂浜のようなウォームグレー */
+    --color-text: #2B2E2C;         /* 純黒を避けた深いグレー */
+    --color-text-sub: #6E7570;
+    --color-outline: #DEDDD2;
     --nav-height: 64px;
     --header-height: 56px;
   }
@@ -234,9 +234,10 @@
     border: 1px solid var(--color-outline);
   }
   .login-btn:active { opacity: 0.8; }
-  .login-btn.google { background: #fff; color: #1A1C1E; }
+  .login-btn.google { background: var(--color-surface); color: var(--color-text); }
   .login-btn.google svg { width: 18px; height: 18px; }
-  .login-btn.guest { background: none; color: var(--color-text-sub); border: none; font-weight: normal; text-decoration: underline; }
+  .login-btn.guest { background: none; color: var(--color-primary); border: 1px solid var(--color-primary); }
+  .login-btn.guest .nav-icon { font-size: 18px; }
   #loginError {
     color: #B00020;
     font-size: 12px;
@@ -271,7 +272,10 @@
       Googleでログイン
     </button>
 
-    <button class="login-btn guest" onclick="loginAsGuest()">ゲストとして利用する（お試し）</button>
+    <button class="login-btn guest" onclick="loginAsGuest()">
+      <span class="nav-icon">👤</span>
+      ゲストとして利用する（お試し）
+    </button>
 
     <div id="loginError"></div>
   </div>
