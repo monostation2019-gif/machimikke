@@ -441,6 +441,16 @@ try {
   auth = firebase.auth();
   db = firebase.firestore();
   googleProvider = new firebase.auth.GoogleAuthProvider();
+
+  // 永続化方式を試す。IndexedDBがブロックされている環境では
+  // LOCALが失敗することがあるため、SESSION→NONEの順にフォールバックする。
+  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(function () {
+    return auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+  }).catch(function () {
+    return auth.setPersistence(firebase.auth.Auth.Persistence.NONE);
+  }).catch(function (e) {
+    console.warn("永続化方式の設定に失敗:", e);
+  });
 } catch (e) {
   showSplashError("Firebaseの初期化に失敗しました: " + e.message);
   throw e;
@@ -461,8 +471,16 @@ let currentProfile = null;
    1. 認証
    起動時に自動ログインはしない。ログイン済みならそのまま画面へ、
    未ログインならログイン画面（Google / ゲスト）を表示する。
+
+   注意: 環境によっては（ブラウザのプライバシー設定・拡張機能等で
+   IndexedDBがブロックされている場合など）onAuthStateChangedが
+   永久に発火しないことがある。その場合でも操作不能にならないよう、
+   一定時間で強制的にログイン画面へ進める。
    ============================================================= */
+let authStateResolved = false;
+
 auth.onAuthStateChanged(async (user) => {
+  authStateResolved = true;
   if (user) {
     // ログイン済み
     try {
@@ -470,7 +488,13 @@ auth.onAuthStateChanged(async (user) => {
       hideSplash();
       hideLoginScreen();
     } catch (e) {
-      showSplashError("データの取得に失敗しました: " + e.message);
+      if (e.code === "unavailable" || /offline/i.test(e.message)) {
+        showSplashError("Firestoreデータベースに接続できません。\nFirebaseコンソール → Firestore Database で「データベースの作成」が完了しているかご確認ください（Authenticationとは別に作成が必要です）。");
+      } else if (e.code === "permission-denied") {
+        showSplashError("Firestoreへのアクセスが拒否されました。\nFirebaseコンソール → Firestore Database → ルール で読み書きが許可されているかご確認ください。");
+      } else {
+        showSplashError("データの取得に失敗しました: " + e.message);
+      }
     }
   } else {
     // 未ログイン → ログイン画面を表示
@@ -478,6 +502,15 @@ auth.onAuthStateChanged(async (user) => {
     showLoginScreen();
   }
 });
+
+// onAuthStateChangedが一定時間たっても発火しない場合、強制的にログイン画面へ
+setTimeout(function () {
+  if (!authStateResolved) {
+    hideSplash();
+    showLoginScreen();
+    showLoginError("初期状態の確認がタイムアウトしました。ログインは試せますが、うまくいかない場合はブラウザのプライバシー設定（IndexedDB/Cookieのブロック）や拡張機能をご確認ください。");
+  }
+}, 4000);
 
 function hideSplash() {
   document.getElementById("splash").classList.add("hidden");
