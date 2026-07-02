@@ -198,6 +198,52 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   #splash.hidden { display: none; }
   #splash .error-box { text-align: center; color: #B00020; padding: 0 24px; }
+
+  /* ---------- ログイン画面 ---------- */
+  #loginScreen {
+    position: fixed;
+    inset: 0;
+    background: var(--color-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 90;
+  }
+  #loginScreen.hidden { display: none; }
+  .login-box {
+    width: 100%;
+    max-width: 340px;
+    padding: 32px 24px;
+    text-align: center;
+  }
+  .login-box .material-emoji { font-size: 48px; }
+  .login-box h1 { font-size: 20px; margin: 12px 0 4px; }
+  .login-box p { color: var(--color-text-sub); font-size: 13px; margin: 0 0 28px; }
+  .login-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 24px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 12px;
+    border: 1px solid var(--color-outline);
+  }
+  .login-btn:active { opacity: 0.8; }
+  .login-btn.google { background: #fff; color: #1A1C1E; }
+  .login-btn.google svg { width: 18px; height: 18px; }
+  .login-btn.guest { background: none; color: var(--color-text-sub); border: none; font-weight: normal; text-decoration: underline; }
+  #loginError {
+    color: #B00020;
+    font-size: 12px;
+    margin-top: 8px;
+    display: none;
+    white-space: pre-line;
+  }
 </style>
 </head>
 <body>
@@ -209,6 +255,26 @@
   <div class="spinner"></div>
   <div>準備中…</div>
   <div class="error-box" id="splashError" style="display:none;"></div>
+</div>
+
+<!-- ============================================================
+     ログイン画面（未ログイン時に表示）
+     ============================================================ -->
+<div id="loginScreen" class="hidden">
+  <div class="login-box">
+    <div class="material-emoji">🌊</div>
+    <h1>海ゴミ探究ノート</h1>
+    <p>伊勢志摩の海ゴミを記録・共有するアプリです。<br>ログインして始めましょう。</p>
+
+    <button class="login-btn google" onclick="loginWithGoogle()">
+      <svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.1 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.1 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4c-7.7 0-14.3 4.3-17.7 10.7z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.3-1.9 14-5.1l-6.5-5.4c-2 1.4-4.6 2.3-7.5 2.3-5.3 0-9.7-3.1-11.3-7.5l-6.6 5.1C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.7l6.5 5.4C41.4 36.6 44 30.9 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
+      Googleでログイン
+    </button>
+
+    <button class="login-btn guest" onclick="loginAsGuest()">ゲストとして利用する（お試し）</button>
+
+    <div id="loginError"></div>
+  </div>
 </div>
 
 <!-- ============================================================
@@ -271,7 +337,12 @@
         <div class="label">更新日時</div>
         <div class="value" id="viewUpdatedAt">-</div>
       </div>
+      <div class="info-row">
+        <div class="label">ログイン方法</div>
+        <div class="value" id="viewAuthMethod">-</div>
+      </div>
       <div style="text-align:right; margin-top:12px;">
+        <button class="btn-text" onclick="logout()">ログアウト</button>
         <button class="btn" onclick="enterEditMode()">編集する</button>
       </div>
     </div>
@@ -337,6 +408,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+const googleProvider = new firebase.auth.GoogleAuthProvider();
 
 /* =============================================================
    定数（Firestoreのコレクション名・フィールド名を1箇所に集約）
@@ -350,25 +422,24 @@ const DEFAULT_ICON = "icons/default_avatar.png";
 let currentProfile = null;
 
 /* =============================================================
-   1. 認証: 起動時に自動ログイン（初回のみ匿名ユーザー作成）
+   1. 認証
+   起動時に自動ログインはしない。ログイン済みならそのまま画面へ、
+   未ログインならログイン画面（Google / ゲスト）を表示する。
    ============================================================= */
 auth.onAuthStateChanged(async (user) => {
   if (user) {
-    // ログイン済み（初回作成 or 再訪問による自動ログイン）
+    // ログイン済み
     try {
-      await loadOrCreateProfile(user.uid);
+      await loadOrCreateProfile(user);
       hideSplash();
+      hideLoginScreen();
     } catch (e) {
       showSplashError("データの取得に失敗しました: " + e.message);
     }
   } else {
-    // 未ログイン → 匿名ログインを試みる
-    try {
-      await auth.signInAnonymously();
-      // 成功すると再度この onAuthStateChanged が呼ばれて上のifに入る
-    } catch (e) {
-      showSplashError("ログインに失敗しました: " + e.message);
-    }
+    // 未ログイン → ログイン画面を表示
+    hideSplash();
+    showLoginScreen();
   }
 });
 
@@ -383,27 +454,95 @@ function showSplashError(message) {
   document.querySelector("#splash div:nth-child(2)").style.display = "none";
 }
 
+function showLoginScreen() {
+  document.getElementById("loginScreen").classList.remove("hidden");
+}
+function hideLoginScreen() {
+  document.getElementById("loginScreen").classList.add("hidden");
+}
+function showLoginError(message) {
+  const errBox = document.getElementById("loginError");
+  errBox.textContent = message;
+  errBox.style.display = "block";
+}
+function clearLoginError() {
+  const errBox = document.getElementById("loginError");
+  errBox.style.display = "none";
+  errBox.textContent = "";
+}
+
+/* Googleでログイン（ポップアップ方式） */
+async function loginWithGoogle() {
+  clearLoginError();
+  try {
+    await auth.signInWithPopup(googleProvider);
+    // 成功すると onAuthStateChanged が呼ばれて画面が切り替わる
+  } catch (e) {
+    if (e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request") {
+      return; // ユーザーがポップアップを閉じただけなのでエラー表示不要
+    }
+    if (e.code === "auth/popup-blocked") {
+      showLoginError("ポップアップがブロックされました。ブラウザの設定を確認してください。");
+      return;
+    }
+    if (e.code === "auth/operation-not-allowed") {
+      showLoginError("Googleログインが有効になっていません。\nFirebaseコンソール → Authentication → Sign-in method でGoogleを有効にしてください。");
+      return;
+    }
+    showLoginError("ログインに失敗しました: " + e.message);
+  }
+}
+
+/* ゲスト（匿名）としてログイン */
+async function loginAsGuest() {
+  clearLoginError();
+  try {
+    await auth.signInAnonymously();
+  } catch (e) {
+    if (e.code === "auth/operation-not-allowed") {
+      showLoginError("匿名ログインが無効になっています。\nGoogleログインをご利用ください。");
+      return;
+    }
+    showLoginError("ログインに失敗しました: " + e.message);
+  }
+}
+
+/* ログアウト */
+async function logout() {
+  await auth.signOut();
+  currentProfile = null;
+  switchScreen("home");
+}
+
 /* =============================================================
    2. Firestore: プロフィールの取得 or 初期作成
    ============================================================= */
-async function loadOrCreateProfile(uid) {
+async function loadOrCreateProfile(user) {
+  const uid = user.uid;
   const docRef = db.collection(USERS_COLLECTION).doc(uid);
   const snapshot = await docRef.get();
 
+  // ログイン方法（Google / ゲスト）を判定
+  const providerId = user.providerData[0] ? user.providerData[0].providerId : "anonymous";
+  const authMethod = providerId === "google.com" ? "Google" : "ゲスト（匿名）";
+
   if (snapshot.exists) {
     currentProfile = snapshot.data();
+    currentProfile.authMethod = authMethod;
   } else {
     // 初回ログイン: 初期プロフィールを作成
+    // Googleログインの場合はアカウントの表示名・写真を初期値として使う
     const now = firebase.firestore.Timestamp.now();
     currentProfile = {
       uid: uid,
-      nickname: DEFAULT_NICKNAME,
-      iconUrl: DEFAULT_ICON,
+      nickname: (providerId === "google.com" && user.displayName) ? user.displayName : DEFAULT_NICKNAME,
+      iconUrl: (providerId === "google.com" && user.photoURL) ? user.photoURL : DEFAULT_ICON,
       comment: DEFAULT_COMMENT,
       createdAt: now,
       updatedAt: now,
     };
     await docRef.set(currentProfile);
+    currentProfile.authMethod = authMethod;
   }
   renderProfile();
 }
@@ -418,6 +557,7 @@ function renderProfile() {
   document.getElementById("viewCreatedAt").textContent = formatTimestamp(currentProfile.createdAt);
   document.getElementById("viewUpdatedAt").textContent = formatTimestamp(currentProfile.updatedAt);
   document.getElementById("profileAvatarImg").src = currentProfile.iconUrl || DEFAULT_ICON;
+  document.getElementById("viewAuthMethod").textContent = currentProfile.authMethod || "-";
 }
 
 function formatTimestamp(ts) {
