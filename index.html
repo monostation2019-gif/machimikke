@@ -2,409 +2,790 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>まちみっけ｜ホーム</title>
-<meta name="theme-color" content="#FAF7F0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>まちみっけ｜伊勢市限定版</title>
+<meta name="theme-color" content="#1f5c3a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
-  :root{
-    --green-dark:#1F5A3D;
-    --green:#2E7D52;
-    --green-soft:#E8F3EC;
-    --amber:#E8871E;
-    --amber-soft:#FDEEDB;
-    --cream:#FAF7F0;
-    --ink:#2B2B26;
-    --ink-soft:#6B6A62;
-    --white:#FFFFFF;
-    --line:#EFECE2;
-    --shadow: 0 10px 24px rgba(31,90,61,0.14);
-  }
-  *{box-sizing:border-box; margin:0; padding:0;}
-  html,body{height:100%;}
-  body{
-    font-family:"Noto Sans JP", sans-serif;
-    background:var(--cream);
-    color:var(--ink);
-    height:100dvh;
-    display:flex;
-    justify-content:center;
-    -webkit-font-smoothing:antialiased;
-    overflow:hidden; /* the whole app is one screen, no page-level scroll */
-  }
-  html.auth-checking #app{ visibility:hidden; }
+:root{
+  --green:#1f5c3a;
+  --green-2:#2f8a52;
+  --green-pale:#e9f5ec;
+  --cream:#faf8f2;
+  --ink:#2b2b26;
+  --gray:#8a8a82;
+  --border:#e6e2d6;
+  --orange:#f2a33c;
+  --pink:#e8688f;
+  --blue:#4a90d9;
+  --radius:20px;
+  --shadow:0 4px 18px rgba(31,92,58,.10);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  margin:0; font-family:'Zen Maru Gothic', sans-serif; background:var(--cream); color:var(--ink);
+  overscroll-behavior-y:none;
+}
+#appFrame{
+  max-width:480px; margin:0 auto; min-height:100dvh; background:var(--cream);
+  position:relative; display:flex; flex-direction:column;
+}
+button{font-family:inherit; cursor:pointer;}
+img{max-width:100%; display:block;}
 
-  #boot-error{
-    display:none;
-    position:fixed;
-    top:14px; left:14px; right:14px;
-    max-width:432px;
-    margin:0 auto;
-    background:#FDECEA;
-    border:1px solid #F3B8B0;
-    color:#8A2E22;
-    border-radius:12px;
-    padding:12px 14px;
-    font-size:12.5px;
-    line-height:1.7;
-    z-index:999;
-  }
-  #boot-error.visible{ display:block; }
+/* ---------- Login overlay ---------- */
+#loginScreen{
+  position:fixed; inset:0; z-index:200; background:linear-gradient(160deg,var(--green) 0%,#123d27 100%);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px; padding:32px;
+  color:#fff; text-align:center;
+}
+#loginScreen .logo{font-size:44px; font-weight:900; letter-spacing:1px;}
+#loginScreen .logo span{color:#ffd77a;}
+#loginScreen .badge{
+  background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.4); border-radius:999px;
+  padding:6px 18px; font-size:13px; font-weight:700;
+}
+#loginScreen .tagline{font-size:15px; opacity:.9; line-height:1.8; max-width:320px;}
+#loginScreen .authBtns{width:100%; max-width:320px; display:flex; flex-direction:column; gap:12px; margin-top:8px;}
+.btn{
+  border:none; border-radius:14px; padding:15px 18px; font-size:15px; font-weight:700;
+  display:flex; align-items:center; justify-content:center; gap:10px; transition:transform .1s ease, opacity .15s;
+}
+.btn:active{transform:scale(.97);}
+.btn-google{background:#fff; color:#333;}
+.btn-guest{background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.5);}
+.btn-primary{background:var(--green-2); color:#fff;}
+.btn-outline{background:#fff; color:var(--green); border:1.5px solid var(--green-pale); box-shadow:var(--shadow);}
 
-  /* ===== App shell: header + scrollable middle + fixed bottom nav =====
-     This 3-row flex layout is what actually guarantees everything fits
-     a single phone screen. Only ".scroll-area" is allowed to scroll,
-     and only as a safety net on unusually short screens — on normal
-     phones nothing scrolls at all. */
-  #app{
-    width:100%;
-    max-width:460px;
-    height:100dvh;
-    background:var(--cream);
-    display:flex;
-    flex-direction:column;
-    overflow:hidden;
-  }
+/* ---------- Header ---------- */
+.topbar{
+  padding:calc(14px + var(--safe-t)) 20px 12px; display:flex; align-items:center; justify-content:space-between;
+  background:var(--cream); position:sticky; top:0; z-index:20;
+}
+.topbar h1{font-size:19px; margin:0; font-weight:900; color:var(--green);}
+.topbar .iconbtn{
+  width:38px; height:38px; border-radius:50%; background:#fff; border:1px solid var(--border);
+  display:flex; align-items:center; justify-content:center; font-size:17px; color:var(--green);
+}
 
-  .top-header{
-    flex-shrink:0;
-    padding:calc(10px + env(safe-area-inset-top)) 20px 6px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-  }
-  .logo-group{ display:flex; flex-direction:column; gap:5px; }
-  .logo{
-    font-family:"Zen Maru Gothic", sans-serif;
-    font-weight:900;
-    font-size:22px;
-    line-height:1;
-    display:flex; align-items:center; gap:2px;
-  }
-  .logo .machi{ color:var(--green-dark); }
-  .logo .mikke{ color:var(--amber); }
-  .logo .dot-icon{ display:inline-flex; margin-left:2px; transform:rotate(-8deg) translateY(-3px); }
-  .pref-badge{
-    align-self:flex-start;
-    background:var(--green);
-    color:var(--white);
-    font-size:10.5px;
-    font-weight:700;
-    padding:3px 11px;
-    border-radius:999px;
-    letter-spacing:.04em;
-  }
+/* ---------- Screens ---------- */
+.screen{display:none; flex:1; padding-bottom:calc(88px + var(--safe-b)); animation:fadeIn .18s ease;}
+.screen.active{display:block;}
+@keyframes fadeIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
 
-  .account-chip{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    background:var(--white);
-    border:1px solid var(--line);
-    border-radius:999px;
-    padding:5px 12px 5px 5px;
-    flex-shrink:0;
-  }
-  .account-chip .avatar{
-    width:26px; height:26px;
-    border-radius:50%;
-    background:var(--amber-soft);
-    color:var(--green-dark);
-    font-family:"Zen Maru Gothic", sans-serif;
-    font-weight:700;
-    font-size:12px;
-    display:flex; align-items:center; justify-content:center;
-    overflow:hidden;
-  }
-  .account-chip .avatar img{ width:100%; height:100%; object-fit:cover; }
-  .account-chip .uname{ font-size:11px; font-weight:700; color:var(--ink); max-width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .account-chip .logout-x{
-    border:none; background:none; color:var(--ink-soft); font-size:14px; cursor:pointer; line-height:1;
-    padding:2px;
-  }
+/* ---------- HOME ---------- */
+.home-hero{
+  margin:8px 18px 18px; padding:26px 22px 22px; border-radius:24px;
+  background:linear-gradient(160deg,#1f5c3a 0%, #2f8a52 100%); color:#fff; position:relative; overflow:hidden;
+  box-shadow:var(--shadow);
+}
+.home-hero::after{
+  content:""; position:absolute; right:-30px; bottom:-40px; width:160px; height:160px; border-radius:50%;
+  background:rgba(255,255,255,.08);
+}
+.home-hero .logo{font-size:30px; font-weight:900; margin:0 0 8px;}
+.home-hero .logo span{color:#ffd77a;}
+.home-hero .badge{
+  display:inline-block; background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.4);
+  border-radius:999px; padding:4px 14px; font-size:12px; font-weight:700; margin-bottom:14px;
+}
+.home-hero p{font-size:13.5px; line-height:1.8; opacity:.92; margin:0 0 18px; position:relative; z-index:1;}
+.discoverBtn{
+  width:100%; background:#fff; color:var(--green); font-size:16px; font-weight:900; border-radius:16px;
+  padding:16px; display:flex; align-items:center; justify-content:center; gap:10px; border:none;
+  box-shadow:0 6px 16px rgba(0,0,0,.15); position:relative; z-index:1;
+}
 
-  /* ===== Scrollable middle (fills all leftover space) ===== */
-  .scroll-area{
-    flex:1 1 auto;
-    min-height:0;
-    display:flex;
-    flex-direction:column;
-    overflow-y:auto;
-  }
+.quicknav{display:flex; gap:12px; margin:0 18px 22px;}
+.quicknav button{
+  flex:1; background:#fff; border:1px solid var(--border); border-radius:16px; padding:14px 6px;
+  display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--ink);
+  box-shadow:var(--shadow);
+}
+.quicknav .ic{font-size:20px;}
 
-  .hero-card{
-    margin:4px 20px 0;
-    border-radius:18px;
-    overflow:hidden;
-    box-shadow:var(--shadow);
-    flex:1 1 auto;
-    min-height:120px;
-    max-height:230px;
-    position:relative;
-  }
-  .hero-card img{
-    width:100%; height:100%;
-    object-fit:cover;
-    object-position:center 38%;
-    display:block;
-  }
+.section-title{margin:0 18px 10px; font-size:15px; font-weight:900; color:var(--green); display:flex; align-items:center; gap:6px;}
+.statsRow{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:0 18px 22px;}
+.statCard{background:#fff; border:1px solid var(--border); border-radius:16px; padding:14px 8px; text-align:center;}
+.statCard .num{font-size:20px; font-weight:900; color:var(--green);}
+.statCard .lbl{font-size:11px; color:var(--gray); margin-top:2px;}
 
-  .tagline{ padding:14px 22px 0; text-align:center; flex-shrink:0; }
-  .tagline h1{
-    font-family:"Zen Maru Gothic", sans-serif;
-    font-size:15px;
-    font-weight:700;
-    color:var(--green-dark);
-    line-height:1.5;
-  }
-  .tagline p{
-    margin-top:5px;
-    font-size:11.5px;
-    line-height:1.6;
-    color:var(--ink-soft);
-  }
+.zukanGrid{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:0 18px 24px;}
+.zukanItem{display:flex; flex-direction:column; align-items:center; gap:6px;}
+.zukanItem .circle{
+  width:56px; height:56px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:24px;
+  box-shadow:var(--shadow);
+}
+.zukanItem .lbl{font-size:10.5px; text-align:center; color:var(--ink); font-weight:700; line-height:1.3;}
 
-  /* Feature strip — explains what the app does. Purely informational
-     (not links), so it no longer duplicates the bottom navigation. */
-  .feature-row{
-    display:flex;
-    padding:12px 18px 2px;
-    justify-content:space-between;
-    gap:4px;
-    flex-shrink:0;
-  }
-  .feature-item{
-    flex:1;
-    display:flex; flex-direction:column; align-items:center; gap:4px;
-    text-align:center;
-  }
-  .feature-item .fi-circle{
-    width:34px; height:34px;
-    border-radius:50%;
-    background:var(--green-soft);
-    display:flex; align-items:center; justify-content:center;
-    font-size:15px;
-  }
-  .feature-item .fi-label{ font-size:9.5px; font-weight:700; color:var(--ink-soft); line-height:1.3; }
+/* ---------- CAMERA / DISCOVER ---------- */
+.cameraStage{margin:8px 18px; text-align:center;}
+.cameraBox{
+  border:2px dashed var(--border); border-radius:20px; padding:40px 16px; background:#fff;
+}
+.cameraBox .ic{font-size:52px; margin-bottom:10px;}
+.cameraBox p{font-size:13px; color:var(--gray); margin:6px 0 18px;}
+input[type=file]{display:none;}
 
-  .cta-area{ padding:12px 22px 0; flex-shrink:0; }
-  .btn{
-    width:100%;
-    border:none;
-    border-radius:14px;
-    padding:13px 16px;
-    font-size:15.5px;
-    font-weight:700;
-    font-family:"Noto Sans JP", sans-serif;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    gap:10px;
-    cursor:pointer;
-    transition:transform .12s ease, background .12s ease;
-  }
-  .btn:active{ transform:scale(0.98); }
-  .btn-discover{ background:var(--green); color:var(--white); box-shadow:var(--shadow); }
-  .btn-discover:hover{ background:var(--green-dark); }
+.previewCard{margin:8px 18px; background:#fff; border-radius:20px; overflow:hidden; box-shadow:var(--shadow);}
+.previewCard img{width:100%; height:230px; object-fit:cover; background:#eee;}
+.resultBox{padding:16px 18px 20px;}
+.resultTop{display:flex; align-items:center; justify-content:space-between;}
+.resultTop .name{font-size:17px; font-weight:900;}
+.resultTop .en{font-size:12px; color:var(--gray);}
+.resultTop .pct{font-size:22px; font-weight:900; color:var(--green);}
+.subChoices{display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;}
+.subChip{background:var(--green-pale); color:var(--green); font-size:12px; font-weight:700; padding:6px 12px; border-radius:999px;}
+.resultBtns{display:flex; flex-direction:column; gap:10px; margin-top:18px;}
 
-  /* Single, compact ranking teaser — replaces the old icon row so map /
-     ranking / mypage aren't offered twice on the same screen. */
-  .ranking-link{
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    gap:6px;
-    margin:10px 22px 8px;
-    padding:9px 14px;
-    background:var(--amber-soft);
-    color:var(--amber);
-    border:none;
-    border-radius:12px;
-    font-size:11.5px;
-    font-weight:700;
-    cursor:pointer;
-    flex-shrink:0;
-  }
-  .ranking-link .arrow{ color:var(--amber); }
+/* ---------- MAP ---------- */
+.filterRow{display:flex; gap:8px; margin:10px 18px 12px; overflow-x:auto; padding-bottom:2px;}
+.filterChip{
+  flex:0 0 auto; padding:8px 16px; border-radius:999px; font-size:12.5px; font-weight:700; border:1.5px solid var(--border);
+  background:#fff; color:var(--gray); white-space:nowrap;
+}
+.filterChip.active{background:var(--green); color:#fff; border-color:var(--green);}
+#leafletMap{height:360px; margin:0 18px; border-radius:20px; overflow:hidden; box-shadow:var(--shadow); background:#dfe9e2;}
+.areaStats{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:14px 18px;}
+.areaStats .cell{background:#fff; border:1px solid var(--border); border-radius:14px; padding:10px 4px; text-align:center;}
+.areaStats .cell .n{font-size:16px; font-weight:900; color:var(--green);}
+.areaStats .cell .l{font-size:10.5px; color:var(--gray); margin-top:2px;}
 
-  .bottom-nav{
-    flex-shrink:0;
-    display:flex;
-    align-items:flex-end;
-    justify-content:space-around;
-    padding:8px 6px calc(8px + env(safe-area-inset-bottom));
-    background:var(--white);
-    border-top:1px solid var(--line);
-  }
-  .nav-item{
-    display:flex; flex-direction:column; align-items:center; gap:3px;
-    font-size:10px;
-    color:var(--ink-soft);
-    font-weight:700;
-    background:none; border:none; cursor:pointer;
-    padding:4px 6px;
-  }
-  .nav-item.active{ color:var(--green); }
-  .nav-item .nav-icon{ font-size:18px; }
-  .nav-item.center{ position:relative; top:-14px; }
-  .nav-item.center .nav-icon{
-    width:48px; height:48px; border-radius:50%;
-    background:var(--green); color:var(--white);
-    display:flex; align-items:center; justify-content:center;
-    font-size:20px; box-shadow:var(--shadow);
-  }
+/* ---------- MYPAGE ---------- */
+.profileCard{
+  margin:8px 18px 18px; background:linear-gradient(160deg,#1f5c3a,#2f8a52); border-radius:22px; padding:22px;
+  color:#fff; display:flex; align-items:center; gap:14px; box-shadow:var(--shadow);
+}
+.profileCard .avatar{
+  width:58px; height:58px; border-radius:50%; background:rgba(255,255,255,.2); display:flex; align-items:center;
+  justify-content:center; font-size:26px; flex:none;
+}
+.profileCard .name{font-size:16px; font-weight:900;}
+.profileCard .lv{font-size:12px; opacity:.9; margin-top:2px;}
+.mypageStats{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:0 18px 20px;}
+.menuList{margin:0 18px 20px; background:#fff; border-radius:18px; border:1px solid var(--border); overflow:hidden;}
+.menuList button{
+  width:100%; display:flex; align-items:center; justify-content:space-between; padding:15px 18px; background:none;
+  border:none; border-bottom:1px solid var(--border); font-size:14px; font-weight:700; color:var(--ink);
+}
+.menuList button:last-child{border-bottom:none;}
+.menuList .left{display:flex; align-items:center; gap:12px;}
+.menuList .badgeNum{background:var(--green-pale); color:var(--green); font-size:11px; font-weight:900; padding:2px 9px; border-radius:999px;}
 
-  @media (min-width:768px){
-    body{ padding:24px 0; overflow:auto; height:auto; min-height:100dvh; }
-    #app{ border-radius:28px; box-shadow:0 0 60px rgba(0,0,0,0.08); height:820px; }
-  }
+/* ---------- RANKING ---------- */
+.rankTabs{display:flex; gap:8px; margin:8px 18px 10px;}
+.rankTabs button{flex:1; padding:9px; border-radius:12px; border:1.5px solid var(--border); background:#fff; font-size:12.5px; font-weight:700; color:var(--gray);}
+.rankTabs button.active{background:var(--green); color:#fff; border-color:var(--green);}
+.periodTabs{display:flex; gap:16px; margin:0 20px 12px; border-bottom:1px solid var(--border);}
+.periodTabs button{background:none; border:none; padding:8px 2px; font-size:13px; font-weight:700; color:var(--gray); border-bottom:2px solid transparent;}
+.periodTabs button.active{color:var(--green); border-color:var(--green);}
+.rankList{margin:0 18px; background:#fff; border-radius:18px; border:1px solid var(--border); overflow:hidden;}
+.rankRow{display:flex; align-items:center; gap:12px; padding:13px 16px; border-bottom:1px solid var(--border);}
+.rankRow:last-child{border-bottom:none;}
+.rankRow .medal{width:26px; text-align:center; font-size:15px; font-weight:900; color:var(--gray);}
+.rankRow.top1 .medal{color:#e0a627;}
+.rankRow.top2 .medal{color:#9aa0a6;}
+.rankRow.top3 .medal{color:#b0703b;}
+.rankRow .town{flex:1; font-size:14px; font-weight:700;}
+.rankRow .count{font-size:13px; color:var(--green); font-weight:900;}
+.rankRow .count small{color:var(--gray); font-weight:500; font-size:11px;}
+
+/* ---------- Bottom nav ---------- */
+#bottomNav{
+  position:fixed; left:0; right:0; bottom:0; max-width:480px; margin:0 auto; background:#fff;
+  border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-around;
+  padding:8px 6px calc(8px + var(--safe-b)); z-index:50;
+}
+#bottomNav button{
+  background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:3px;
+  font-size:10.5px; color:var(--gray); font-weight:700; flex:1; padding:4px 0;
+}
+#bottomNav button .ic{font-size:19px;}
+#bottomNav button.active{color:var(--green);}
+#bottomNav button.centerBtn{
+  margin-top:-26px; background:linear-gradient(160deg,#1f5c3a,#2f8a52); color:#fff; width:54px; height:54px;
+  border-radius:50%; justify-content:center; box-shadow:0 6px 14px rgba(31,92,58,.35); flex:none;
+}
+#bottomNav button.centerBtn .ic{font-size:22px;}
+
+.toast{
+  position:fixed; left:50%; bottom:110px; transform:translateX(-50%); background:#2b2b26; color:#fff;
+  padding:10px 18px; border-radius:999px; font-size:13px; z-index:300; opacity:0; pointer-events:none; transition:opacity .25s;
+}
+.toast.show{opacity:1;}
+.hidden{display:none !important;}
 </style>
 </head>
 <body>
+<div id="appFrame">
 
-<div id="boot-error">
-  ページの読み込みに問題が発生しました。<br>
-  ・Firebaseの設定（assets/firebase-init.js の firebaseConfig）が正しいか<br>
-  ・このページを http(s):// 経由で開いているか（file:// で直接開くと動作しません）<br>
-  をご確認ください。詳細はブラウザの開発者ツール（コンソール）にも表示されています。
-</div>
-
-<div id="app">
-  <header class="top-header">
-    <div class="logo-group">
-      <div class="logo">
-        <span class="machi">まち</span><span class="mikke">みっけ</span>
-        <span class="dot-icon">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-            <circle cx="10" cy="10" r="7" stroke="#E8871E" stroke-width="2.6"/>
-            <line x1="15.5" y1="15.5" x2="21" y2="21" stroke="#E8871E" stroke-width="2.6" stroke-linecap="round"/>
-          </svg>
-        </span>
-      </div>
-      <span class="pref-badge">伊勢市限定版</span>
+  <!-- ================= LOGIN ================= -->
+  <div id="loginScreen">
+    <div>
+      <div class="logo">まち<span>みっけ</span> 🔍</div>
+      <div class="badge">伊勢市限定版</div>
     </div>
-
-    <div class="account-chip">
-      <span class="avatar" id="header-avatar">見</span>
-      <span class="uname" id="header-username">-</span>
-      <button class="logout-x" id="btn-logout" title="ログアウト">✕</button>
+    <p class="tagline">歩いて、走って、見つけよう。<br>まちで見つけたものを写真で記録。<br>AIが判定して、みんなの図鑑になります。</p>
+    <div class="authBtns">
+      <button class="btn btn-google" id="googleLoginBtn">
+        <span>🔎</span> Googleでログイン
+      </button>
+      <button class="btn btn-guest" id="guestLoginBtn">ゲストで始める</button>
     </div>
-  </header>
-
-  <div class="scroll-area">
-    <div class="hero-card">
-      <img src="assets/hero-street.png" alt="伊勢のまちを歩く・走る・自転車で巡る人々のイラスト">
-    </div>
-
-    <div class="tagline">
-      <h1>歩いて、走って、見つけよう。<br>みんなでつくる、伊勢の図鑑。</h1>
-      <p>まちで見つけたものを写真で記録。AIが判定して、みんなの図鑑になります。</p>
-    </div>
-
-    <div class="feature-row">
-      <div class="feature-item">
-        <span class="fi-circle">📷</span><span class="fi-label">見つけて</span>
-      </div>
-      <div class="feature-item">
-        <span class="fi-circle">🔍</span><span class="fi-label">AIで判定</span>
-      </div>
-      <div class="feature-item">
-        <span class="fi-circle">📖</span><span class="fi-label">図鑑に登録</span>
-      </div>
-      <div class="feature-item">
-        <span class="fi-circle">📍</span><span class="fi-label">伊勢を知る</span>
-      </div>
-    </div>
-
-    <div class="cta-area">
-      <button id="btn-discover" class="btn btn-discover">📷　発見する</button>
-    </div>
-
-    <button id="btn-ranking" class="ranking-link">🏆　今週の町別ランキングを見る　<span class="arrow">›</span></button>
   </div>
 
-  <nav class="bottom-nav">
-    <button class="nav-item active" data-nav="home.html"><span class="nav-icon">🏠</span>ホーム</button>
-    <button class="nav-item" data-nav="zukan.html"><span class="nav-icon">📖</span>図鑑</button>
-    <button class="nav-item center" data-nav="discover.html"><span class="nav-icon">📷</span></button>
-    <button class="nav-item" data-nav="map.html"><span class="nav-icon">🗺️</span>マップ</button>
-    <button class="nav-item" data-nav="mypage.html"><span class="nav-icon">👤</span>マイページ</button>
+  <!-- ================= TOPBAR ================= -->
+  <div class="topbar">
+    <h1 id="topbarTitle">まちみっけ</h1>
+    <button class="iconbtn" id="logoutBtn" title="ログアウト">⎋</button>
+  </div>
+
+  <!-- ================= HOME ================= -->
+  <section class="screen active" id="screen-home">
+    <div class="home-hero">
+      <div class="logo">まち<span>みっけ</span> 🔍</div>
+      <div class="badge">伊勢市限定版</div>
+      <p>歩いて、走って、見つけよう。<br>みんなでつくる、伊勢の図鑑。</p>
+      <button class="discoverBtn" data-nav="discover">📷 発見する</button>
+    </div>
+
+    <div class="quicknav">
+      <button data-nav="map"><span class="ic">🗺️</span>マップ</button>
+      <button data-nav="ranking"><span class="ic">🏆</span>ランキング</button>
+      <button data-nav="mypage"><span class="ic">👤</span>マイページ</button>
+    </div>
+
+    <div class="section-title">あなたの記録</div>
+    <div class="statsRow">
+      <div class="statCard"><div class="num" id="homeStatFinds">0</div><div class="lbl">発見数</div></div>
+      <div class="statCard"><div class="num" id="homeStatSpecies">0</div><div class="lbl">図鑑登録数</div></div>
+      <div class="statCard"><div class="num" id="homeStatDist">0<small style="font-size:11px;">km</small></div><div class="lbl">調査距離</div></div>
+    </div>
+
+    <div class="section-title">いろいろな図鑑</div>
+    <div class="zukanGrid" id="zukanGrid"></div>
+  </section>
+
+  <!-- ================= 図鑑 (list) ================= -->
+  <section class="screen" id="screen-zukan">
+    <div class="section-title" style="margin-top:14px;">図鑑一覧</div>
+    <div class="zukanGrid" id="zukanGrid2" style="margin-bottom:18px;"></div>
+    <div class="section-title">最近の発見</div>
+    <div id="recentList" style="margin:0 18px;"></div>
+  </section>
+
+  <!-- ================= 発見 (camera) ================= -->
+  <section class="screen" id="screen-discover">
+    <div id="captureStage">
+      <div class="cameraStage">
+        <div class="cameraBox">
+          <div class="ic">📷</div>
+          <p>見つけたものを撮影してください<br>AIが自動で種類を判定します</p>
+          <label class="btn btn-primary" style="display:inline-flex;" for="photoInput">写真を撮る / 選ぶ</label>
+          <input type="file" id="photoInput" accept="image/*" capture="environment">
+        </div>
+      </div>
+    </div>
+
+    <div id="resultStage" class="hidden">
+      <div class="previewCard">
+        <img id="previewImg" src="" alt="撮影した写真">
+        <div class="resultBox">
+          <div style="font-size:12px; color:var(--gray); font-weight:700; margin-bottom:4px;">AI判定結果</div>
+          <div class="resultTop">
+            <div>
+              <div class="name" id="resultName">-</div>
+              <div class="en" id="resultNameEn">-</div>
+            </div>
+            <div class="pct" id="resultPct">-</div>
+          </div>
+          <div style="font-size:12px; color:var(--gray); margin-top:12px;">ほかの候補</div>
+          <div class="subChoices" id="subChoices"></div>
+          <div class="resultBtns">
+            <button class="btn btn-primary" id="registerBtn">この結果で登録する</button>
+            <button class="btn btn-outline" id="retakeBtn">撮り直す</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 発見マップ ================= -->
+  <section class="screen" id="screen-map">
+    <div class="filterRow" id="mapFilterRow"></div>
+    <div id="leafletMap"></div>
+    <div class="areaStats" id="areaStats"></div>
+  </section>
+
+  <!-- ================= マイページ ================= -->
+  <section class="screen" id="screen-mypage">
+    <div class="profileCard">
+      <div class="avatar">🧑</div>
+      <div>
+        <div class="name" id="myName">伊勢の探検家</div>
+        <div class="lv" id="myLevel">Lv.1 さんぽビギナー</div>
+      </div>
+    </div>
+    <div class="mypageStats">
+      <div class="statCard"><div class="num" id="myStatFinds">0</div><div class="lbl">発見数</div></div>
+      <div class="statCard"><div class="num" id="myStatSpecies">0</div><div class="lbl">図鑑登録数</div></div>
+      <div class="statCard"><div class="num" id="myStatDist">0<small style="font-size:11px;">km</small></div><div class="lbl">調査距離</div></div>
+    </div>
+    <div class="menuList">
+      <button data-nav="zukan"><span class="left">📔 自分の記録</span><span>›</span></button>
+      <button><span class="left">⭐ お気に入り</span><span>›</span></button>
+      <button><span class="left">🏅 バッジコレクション</span><span class="badgeNum" id="badgeCount">0</span></button>
+      <button><span class="left">🎯 ミッション</span><span>›</span></button>
+      <button><span class="left">⚙️ 設定</span><span>›</span></button>
+    </div>
+  </section>
+
+  <!-- ================= ランキング ================= -->
+  <section class="screen" id="screen-ranking">
+    <div class="section-title" style="margin-top:14px;">町別ランキング</div>
+    <div class="rankTabs">
+      <button class="active" data-rank="finds">発見数</button>
+      <button data-rank="species">図鑑登録数</button>
+      <button data-rank="likes">いいね！数</button>
+    </div>
+    <div class="periodTabs">
+      <button data-period="week">今週</button>
+      <button class="active" data-period="month">今月</button>
+      <button data-period="all">累計</button>
+    </div>
+    <div class="rankList" id="rankList"></div>
+  </section>
+
+  <!-- ================= BOTTOM NAV ================= -->
+  <nav id="bottomNav">
+    <button data-nav="home" class="active"><span class="ic">🏠</span>ホーム</button>
+    <button data-nav="zukan"><span class="ic">📔</span>図鑑</button>
+    <button data-nav="discover" class="centerBtn"><span class="ic">📷</span></button>
+    <button data-nav="map"><span class="ic">🗺️</span>マップ</button>
+    <button data-nav="mypage"><span class="ic">👤</span>マイページ</button>
   </nav>
+
+  <div class="toast" id="toast"></div>
 </div>
 
-<!-- ===================== Firebase ===================== -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="assets/firebase-init.js"></script>
-<script>
-  document.documentElement.classList.add("auth-checking");
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module">
+/* =========================================================================
+   まちみっけ｜伊勢市限定版 — app logic
+   Firebase (Auth + Firestore) + Leaflet GPS map + mock AI classification.
 
-  const $ = (id) => document.getElementById(id);
+   >>> SETUP: fill in your own Firebase project config below <<<
+   ========================================================================= */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously,
+  onAuthStateChanged, signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot,
+  serverTimestamp, doc, setDoc, getDoc, increment
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-  // ----- Navigation (previously missing: buttons had no click handlers) -----
-  // Adjust the filenames below to match the actual page names in your project.
-  $("btn-discover").addEventListener("click", () => { window.location.href = "discover.html"; });
-  $("btn-ranking").addEventListener("click", () => { window.location.href = "ranking.html"; });
-  document.querySelectorAll(".nav-item[data-nav]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const dest = btn.dataset.nav;
-      if (dest && dest !== "home.html") window.location.href = dest;
+// TODO: replace with your own Firebase project settings (see console.firebase.google.com)
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+let fbApp, auth, db, currentUser = null;
+try {
+  fbApp = initializeApp(firebaseConfig);
+  auth = getAuth(fbApp);
+  db = getFirestore(fbApp);
+} catch (e) {
+  console.warn("Firebase init skipped (config not set yet):", e.message);
+}
+
+/* ---------------- Categories (図鑑) ---------------- */
+const CATEGORIES = [
+  { id: "poi",     name: "ポイ捨て図鑑", emoji: "🗑️", color: "#f2a33c" },
+  { id: "flower",  name: "花図鑑",       emoji: "🌸", color: "#e8688f" },
+  { id: "bird",    name: "野鳥図鑑",     emoji: "🐦", color: "#5a6b57" },
+  { id: "insect",  name: "昆虫図鑑",     emoji: "🦋", color: "#e0a627" },
+  { id: "tree",    name: "樹木図鑑",     emoji: "🌳", color: "#2f8a52" },
+  { id: "umigomi", name: "海ごみ図鑑",   emoji: "🌊", color: "#4a90d9" },
+  { id: "other",   name: "その他いろいろ", emoji: "🔍", color: "#8a8a82" },
+];
+
+// Mock AI candidate pools per category — swap fetchAIClassification() below
+// for a real call (e.g. a Cloud Function that proxies an image-classification API).
+const MOCK_RESULTS = {
+  poi: [
+    { name: "空き缶（アルミ缶）", en: "Aluminum can", pct: 94, others: [["スチール缶", 5], ["ペットボトル", 1]] },
+    { name: "ペットボトル", en: "PET bottle", pct: 88, others: [["空き缶", 8], ["ビニール袋", 4]] },
+    { name: "たばこの吸い殻", en: "Cigarette butt", pct: 91, others: [["紙くず", 6], ["その他", 3]] },
+  ],
+  flower: [
+    { name: "ハマヒルガオ", en: "Beach morning glory", pct: 90, others: [["コスモス", 6], ["その他", 4]] },
+    { name: "アジサイ", en: "Hydrangea", pct: 93, others: [["ツツジ", 5], ["その他", 2]] },
+  ],
+  bird: [
+    { name: "ハクセキレイ", en: "White wagtail", pct: 87, others: [["スズメ", 9], ["その他", 4]] },
+    { name: "アオサギ", en: "Grey heron", pct: 92, others: [["ダイサギ", 6], ["その他", 2]] },
+  ],
+  insect: [
+    { name: "モンシロチョウ", en: "Cabbage white", pct: 89, others: [["アゲハチョウ", 7], ["その他", 4]] },
+  ],
+  tree: [
+    { name: "クスノキ", en: "Camphor tree", pct: 85, others: [["ケヤキ", 10], ["その他", 5]] },
+  ],
+  umigomi: [
+    { name: "発泡スチール片", en: "Styrofoam fragment", pct: 90, others: [["漁具ロープ", 6], ["その他", 4]] },
+    { name: "漁網（廃棄）", en: "Discarded fishing net", pct: 86, others: [["ペットボトル", 9], ["その他", 5]] },
+  ],
+  other: [
+    { name: "分類不明の物体", en: "Unclassified item", pct: 62, others: [["その他", 38]] },
+  ],
+};
+
+async function fetchAIClassification(categoryId) {
+  // Placeholder "AI" — picks a random plausible result for the category.
+  // Replace with e.g.:
+  //   const res = await fetch("https://YOUR_CLOUD_FUNCTION/classify", {method:"POST", body:...});
+  //   return await res.json();
+  await new Promise(r => setTimeout(r, 700)); // simulate inference latency
+  const pool = MOCK_RESULTS[categoryId] || MOCK_RESULTS.other;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/* ---------------- Ranking mock data (replace with Firestore aggregation) ---------------- */
+const RANKING_MOCK = {
+  finds: [
+    ["宮町", 236], ["河崎", 198], ["宇治中之切町", 175], ["二見町江", 154],
+    ["大湊町", 132], ["御薗町", 98], ["小俣町元町", 86],
+  ],
+  species: [
+    ["宮町", 48], ["河崎", 44], ["宇治中之切町", 39], ["二見町江", 33],
+    ["大湊町", 28], ["御薗町", 21], ["小俣町元町", 17],
+  ],
+  likes: [
+    ["河崎", 312], ["宮町", 289], ["二見町江", 201], ["宇治中之切町", 188],
+    ["大湊町", 150], ["御薗町", 112], ["小俣町元町", 94],
+  ],
+};
+
+/* ============================= Navigation ============================= */
+const screens = ["home", "zukan", "discover", "map", "mypage", "ranking"];
+function showScreen(name) {
+  screens.forEach(s => document.getElementById("screen-" + s).classList.toggle("active", s === name));
+  document.querySelectorAll("#bottomNav button[data-nav]").forEach(b =>
+    b.classList.toggle("active", b.dataset.nav === name)
+  );
+  document.getElementById("topbarTitle").textContent =
+    name === "home" ? "まちみっけ" :
+    name === "zukan" ? "図鑑" :
+    name === "discover" ? "発見する" :
+    name === "map" ? "発見マップ" :
+    name === "mypage" ? "マイページ" : "町別ランキング";
+  if (name === "map") setTimeout(initMapIfNeeded, 50);
+  if (name === "discover") resetCaptureStage();
+}
+document.querySelectorAll("[data-nav]").forEach(el =>
+  el.addEventListener("click", () => showScreen(el.dataset.nav))
+);
+
+/* ============================= Toast ============================= */
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 1800);
+}
+
+/* ============================= Auth ============================= */
+document.getElementById("googleLoginBtn").addEventListener("click", async () => {
+  if (!auth) return toast("Firebase未設定です");
+  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+  catch (e) { toast("ログインに失敗しました"); console.error(e); }
+});
+document.getElementById("guestLoginBtn").addEventListener("click", async () => {
+  if (!auth) return toast("Firebase未設定です");
+  try { await signInAnonymously(auth); }
+  catch (e) { toast("ログインに失敗しました"); console.error(e); }
+});
+document.getElementById("logoutBtn").addEventListener("click", async () => {
+  if (!auth) return;
+  await signOut(auth);
+});
+
+function setLoggedIn(isIn) {
+  document.getElementById("loginScreen").classList.toggle("hidden", isIn);
+}
+
+if (auth) {
+  onAuthStateChanged(auth, async (user) => {
+    currentUser = user;
+    setLoggedIn(!!user);
+    if (user) {
+      await ensureUserProfile(user);
+      loadUserStats(user);
+    }
+  });
+} else {
+  // No Firebase config yet — allow browsing the UI anyway.
+  setLoggedIn(true);
+}
+
+async function ensureUserProfile(user) {
+  const ref = doc(db, "users", user.uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      displayName: user.displayName || "伊勢の探検家",
+      finds: 0, species: 0, distanceKm: 0, badges: 0,
+      createdAt: serverTimestamp(),
     });
+  }
+}
+
+function loadUserStats(user) {
+  const ref = doc(db, "users", user.uid);
+  onSnapshot(ref, (snap) => {
+    if (!snap.exists()) return;
+    const d = snap.data();
+    document.getElementById("myName").textContent = d.displayName || "伊勢の探検家";
+    const lv = Math.max(1, Math.floor((d.finds || 0) / 20) + 1);
+    document.getElementById("myLevel").textContent = `Lv.${lv} さんぽマスター`;
+    ["homeStatFinds", "myStatFinds"].forEach(id => document.getElementById(id).textContent = d.finds || 0);
+    ["homeStatSpecies", "myStatSpecies"].forEach(id => document.getElementById(id).textContent = d.species || 0);
+    ["homeStatDist", "myStatDist"].forEach(id => document.getElementById(id).firstChild.textContent = (d.distanceKm || 0).toFixed(1));
+    document.getElementById("badgeCount").textContent = d.badges || 0;
+  });
+}
+
+/* ============================= 図鑑 grid ============================= */
+function renderZukanGrid(el) {
+  el.innerHTML = "";
+  CATEGORIES.forEach(c => {
+    const item = document.createElement("div");
+    item.className = "zukanItem";
+    item.innerHTML = `<div class="circle" style="background:${c.color}22; color:${c.color};">${c.emoji}</div><div class="lbl">${c.name}</div>`;
+    el.appendChild(item);
+  });
+}
+renderZukanGrid(document.getElementById("zukanGrid"));
+renderZukanGrid(document.getElementById("zukanGrid2"));
+
+/* ============================= Capture / AI flow ============================= */
+let pendingPhotoDataUrl = null;
+let pendingResult = null;
+let pendingCategory = "other";
+
+function resetCaptureStage() {
+  document.getElementById("captureStage").classList.remove("hidden");
+  document.getElementById("resultStage").classList.add("hidden");
+  document.getElementById("photoInput").value = "";
+}
+
+document.getElementById("photoInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    pendingPhotoDataUrl = reader.result;
+    document.getElementById("previewImg").src = pendingPhotoDataUrl;
+    document.getElementById("captureStage").classList.add("hidden");
+    document.getElementById("resultStage").classList.remove("hidden");
+    document.getElementById("resultName").textContent = "判定中…";
+    document.getElementById("resultNameEn").textContent = "";
+    document.getElementById("resultPct").textContent = "";
+    document.getElementById("subChoices").innerHTML = "";
+
+    // naive random category pick for the mock — a real backend would infer this from the image
+    pendingCategory = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)].id;
+    pendingResult = await fetchAIClassification(pendingCategory);
+
+    document.getElementById("resultName").textContent = pendingResult.name;
+    document.getElementById("resultNameEn").textContent = pendingResult.en;
+    document.getElementById("resultPct").textContent = pendingResult.pct + "%";
+    document.getElementById("subChoices").innerHTML = pendingResult.others
+      .map(([n, p]) => `<span class="subChip">${n} ${p}%</span>`).join("");
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById("retakeBtn").addEventListener("click", resetCaptureStage);
+
+document.getElementById("registerBtn").addEventListener("click", async () => {
+  if (!pendingResult) return;
+  if (!db || !currentUser) { toast("この結果で登録しました（デモ）"); resetCaptureStage(); showScreen("home"); return; }
+
+  navigator.geolocation?.getCurrentPosition(async (pos) => {
+    await saveDiscovery(pos.coords.latitude, pos.coords.longitude);
+  }, async () => {
+    await saveDiscovery(null, null); // no GPS permission — still save the record
+  }, { enableHighAccuracy: true, timeout: 6000 });
+});
+
+async function saveDiscovery(lat, lng) {
+  try {
+    await addDoc(collection(db, "discoveries"), {
+      uid: currentUser.uid,
+      category: pendingCategory,
+      name: pendingResult.name,
+      nameEn: pendingResult.en,
+      confidence: pendingResult.pct,
+      photo: pendingPhotoDataUrl, // NOTE: for production, upload to Firebase Storage instead of inline base64
+      lat, lng,
+      createdAt: serverTimestamp(),
+    });
+    await setDoc(doc(db, "users", currentUser.uid), {
+      finds: increment(1), species: increment(1),
+    }, { merge: true });
+    toast("この結果で登録しました！");
+  } catch (e) {
+    console.error(e);
+    toast("登録に失敗しました");
+  }
+  resetCaptureStage();
+  showScreen("home");
+}
+
+/* ============================= Map ============================= */
+let leafletMap = null;
+let mapInitDone = false;
+let activeFilter = "all";
+
+const MAP_FILTERS = [
+  { id: "all", label: "すべて" },
+  { id: "poi", label: "ポイ捨て" },
+  { id: "flower", label: "自然" },
+  { id: "bird", label: "生きもの" },
+  { id: "other", label: "その他" },
+];
+const filterRow = document.getElementById("mapFilterRow");
+MAP_FILTERS.forEach(f => {
+  const b = document.createElement("button");
+  b.className = "filterChip" + (f.id === "all" ? " active" : "");
+  b.textContent = f.label;
+  b.addEventListener("click", () => {
+    activeFilter = f.id;
+    filterRow.querySelectorAll(".filterChip").forEach(c => c.classList.remove("active"));
+    b.classList.add("active");
+    renderMarkers();
+  });
+  filterRow.appendChild(b);
+});
+
+let discoveryMarkersLayer = null;
+let allDiscoveries = [];
+
+function initMapIfNeeded() {
+  if (mapInitDone) { leafletMap.invalidateSize(); return; }
+  mapInitDone = true;
+
+  // Default center: Ise Shrine area, Mie, Japan
+  leafletMap = L.map("leafletMap", { zoomControl: false }).setView([34.4855, 136.7096], 14);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap contributors",
+  }).addTo(leafletMap);
+  discoveryMarkersLayer = L.layerGroup().addTo(leafletMap);
+
+  navigator.geolocation?.getCurrentPosition((pos) => {
+    leafletMap.setView([pos.coords.latitude, pos.coords.longitude], 15);
+    L.circleMarker([pos.coords.latitude, pos.coords.longitude], {
+      radius: 8, color: "#4a90d9", fillColor: "#4a90d9", fillOpacity: .6,
+    }).addTo(leafletMap).bindPopup("現在地");
   });
 
-  $("btn-logout").addEventListener("click", async () => {
-    await auth.signOut();
-    window.location.href = "login.html";
-  });
-
-  function showBootError(){
-    document.getElementById("boot-error").classList.add("visible");
-    document.documentElement.classList.remove("auth-checking");
-  }
-
-  // Firebaseの読み込み・通信に失敗しても画面が白紙のまま止まらないよう、
-  // 一定時間内に認証状態が確定しない場合はエラーを表示する
-  const bootTimeout = setTimeout(showBootError, 6000);
-
-  try{
-    // 未ログインならログイン画面へ即リダイレクト
-    auth.onAuthStateChanged(async (user) => {
-      clearTimeout(bootTimeout);
-      if (!user){
-        window.location.href = "login.html";
-        return;
-      }
-      try{
-        const data = await fetchUserProfile(user.uid);
-        const name = data.displayName || (user.isAnonymous ? "ゲスト" : "伊勢の探検家");
-
-        $("header-username").textContent = name;
-        const avatar = $("header-avatar");
-        if (data.photoURL){
-          avatar.innerHTML = '<img src="' + data.photoURL + '" alt="">';
-        } else {
-          avatar.textContent = name.charAt(name.length - 1) || "見";
-        }
-
-        document.documentElement.classList.remove("auth-checking");
-      }catch(err){
-        console.error(err);
-        document.documentElement.classList.remove("auth-checking");
-      }
-    }, (err) => {
-      clearTimeout(bootTimeout);
-      console.error(err);
-      showBootError();
+  if (db) {
+    const q = query(collection(db, "discoveries"), orderBy("createdAt", "desc"), limit(200));
+    onSnapshot(q, (snap) => {
+      allDiscoveries = [];
+      snap.forEach(d => { const v = d.data(); if (v.lat && v.lng) allDiscoveries.push(v); });
+      renderMarkers();
+      updateAreaStats();
     });
-  }catch(err){
-    clearTimeout(bootTimeout);
-    console.error(err);
-    showBootError();
+  } else {
+    renderAreaStatsPlaceholder();
   }
+}
+
+function renderMarkers() {
+  if (!discoveryMarkersLayer) return;
+  discoveryMarkersLayer.clearLayers();
+  const list = activeFilter === "all" ? allDiscoveries : allDiscoveries.filter(d => d.category === activeFilter);
+  list.forEach(d => {
+    const cat = CATEGORIES.find(c => c.id === d.category) || CATEGORIES[CATEGORIES.length - 1];
+    L.circleMarker([d.lat, d.lng], {
+      radius: 7, color: cat.color, fillColor: cat.color, fillOpacity: .75, weight: 2,
+    }).addTo(discoveryMarkersLayer).bindPopup(`<b>${d.name || ""}</b>`);
+  });
+}
+
+function updateAreaStats() {
+  const counts = { poi: 0, flower: 0, bird: 0, other: 0 };
+  allDiscoveries.forEach(d => {
+    if (d.category === "poi") counts.poi++;
+    else if (["flower", "tree", "umigomi"].includes(d.category)) counts.flower++;
+    else if (["bird", "insect"].includes(d.category)) counts.bird++;
+    else counts.other++;
+  });
+  const el = document.getElementById("areaStats");
+  el.innerHTML = `
+    <div class="cell"><div class="n">${counts.poi}</div><div class="l">ポイ捨て</div></div>
+    <div class="cell"><div class="n">${counts.flower}</div><div class="l">自然</div></div>
+    <div class="cell"><div class="n">${counts.bird}</div><div class="l">生きもの</div></div>
+    <div class="cell"><div class="n">${counts.other}</div><div class="l">その他</div></div>`;
+}
+function renderAreaStatsPlaceholder() {
+  document.getElementById("areaStats").innerHTML = `
+    <div class="cell"><div class="n">128</div><div class="l">ポイ捨て</div></div>
+    <div class="cell"><div class="n">86</div><div class="l">自然</div></div>
+    <div class="cell"><div class="n">64</div><div class="l">生きもの</div></div>
+    <div class="cell"><div class="n">31</div><div class="l">その他</div></div>`;
+}
+
+/* ============================= Ranking ============================= */
+let rankType = "finds", rankPeriod = "month";
+function renderRanking() {
+  const el = document.getElementById("rankList");
+  const data = RANKING_MOCK[rankType];
+  const medals = ["🥇", "🥈", "🥉"];
+  el.innerHTML = data.map(([town, count], i) => `
+    <div class="rankRow ${i === 0 ? "top1" : i === 1 ? "top2" : i === 2 ? "top3" : ""}">
+      <div class="medal">${medals[i] || i + 1}</div>
+      <div class="town">${town}</div>
+      <div class="count">${count}<small>件</small></div>
+    </div>`).join("");
+}
+document.querySelectorAll(".rankTabs button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".rankTabs button").forEach(x => x.classList.remove("active"));
+  b.classList.add("active");
+  rankType = b.dataset.rank;
+  renderRanking();
+}));
+document.querySelectorAll(".periodTabs button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".periodTabs button").forEach(x => x.classList.remove("active"));
+  b.classList.add("active");
+  rankPeriod = b.dataset.period; // NOTE: mock data doesn't vary by period yet — wire to Firestore query when ready
+  renderRanking();
+}));
+renderRanking();
+
+/* ============================= Recent list (図鑑画面) ============================= */
+function renderRecentPlaceholder() {
+  document.getElementById("recentList").innerHTML =
+    `<p style="text-align:center; color:var(--gray); font-size:13px; padding:20px 0;">まだ発見の記録がありません。<br>「発見する」から最初の1枚を登録しましょう！</p>`;
+}
+renderRecentPlaceholder();
+
+/* ============================= Boot ============================= */
+showScreen("home");
 </script>
 </body>
 </html>
