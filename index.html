@@ -135,14 +135,6 @@ img{max-width:100%; display:block;}
 input[type=file]{display:none;}
 
 /* ---------- Category / Type picker (manual selection, no AI) ---------- */
-.catPickGrid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin:0 18px 18px;}
-.catPickBtn{
-  display:flex; flex-direction:column; align-items:center; gap:8px; background:#fff;
-  border:2px solid var(--border); border-radius:16px; padding:16px 4px; font-size:12px; font-weight:700; color:var(--ink);
-}
-.catPickBtn .circle{width:50px; height:50px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px;}
-.catPickBtn.active{border-color:var(--green-2);}
-
 .typeGrid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:6px 0 4px;}
 .typeBtn{
   display:flex; flex-direction:column; align-items:center; gap:6px; background:#fff;
@@ -329,15 +321,10 @@ input[type=file]{display:none;}
 
   <!-- ================= 発見 (camera) ================= -->
   <section class="screen" id="screen-discover">
-    <div id="catStage">
+    <div id="typeStage">
       <div class="section-title" style="margin-top:14px;">なにを見つけましたか？</div>
-      <div class="catPickGrid" id="catPickGrid"></div>
-    </div>
-
-    <div id="typeStage" class="hidden">
-      <div class="section-title" style="margin-top:14px;" id="typeStageTitle">ゴミの種類をえらんでください</div>
+      <div class="filterRow" id="catToggleRow" style="margin:0 18px 14px;"></div>
       <div class="typeGrid" id="typeGrid" style="margin:0 18px 18px;"></div>
-      <button class="btn btn-outline" id="backToCatFromTypeBtn" style="margin:0 18px 18px; width:calc(100% - 36px);">‹ 図鑑の種類を選び直す</button>
     </div>
 
     <div id="captureStage" class="hidden">
@@ -807,30 +794,22 @@ renderZukanGrid(document.getElementById("zukanGrid2"));
 
 /* ============================= Capture flow (manual selection, no AI) ============================= */
 let pendingPhotoDataUrl = null;
-let pendingCategory = null;
+let pendingCategory = "poi"; // デフォルトは「ポイ捨て」。トグルでいつでも切り替えられる
 let pendingSelection = null; // { name, en, emoji }
 let pendingLat = null;
 let pendingLng = null;
 
-function renderCatPickGrid() {
-  const grid = document.getElementById("catPickGrid");
-  grid.innerHTML = CATEGORIES.filter(c => c.id !== "other").map(c => `
-    <button class="catPickBtn" data-cat="${c.id}">
-      <span class="circle" style="background:${c.color}22; color:${c.color};">${c.emoji}</span>
-      <span>${c.name.replace("図鑑", "")}</span>
-    </button>`).join("");
-  grid.querySelectorAll("[data-cat]").forEach(btn =>
-    btn.addEventListener("click", () => selectCategory(btn.dataset.cat))
-  );
-}
-
-function selectCategory(catId) {
-  pendingCategory = catId;
-  document.getElementById("catStage").classList.add("hidden");
-  document.getElementById("typeStage").classList.remove("hidden");
-  const cat = CATEGORIES.find(c => c.id === catId);
-  document.getElementById("typeStageTitle").textContent = `「${cat.name}」の種類をえらんでください`;
-  renderTypeGrid();
+function renderCatToggle() {
+  const row = document.getElementById("catToggleRow");
+  const pickable = CATEGORIES.filter(c => c.id !== "other");
+  row.innerHTML = pickable.map(c => `
+    <button class="filterChip${c.id === pendingCategory ? " active" : ""}" data-cat="${c.id}">${c.emoji} ${c.name.replace("図鑑", "")}</button>
+  `).join("");
+  row.querySelectorAll("[data-cat]").forEach(btn => btn.addEventListener("click", () => {
+    pendingCategory = btn.dataset.cat;
+    renderCatToggle();
+    renderTypeGrid();
+  }));
 }
 
 function renderTypeGrid() {
@@ -853,8 +832,6 @@ function selectType(t) {
   document.getElementById("captureHint").textContent = `${cat.emoji}${t.emoji} 「${t.name}」を撮影してください`;
 }
 
-document.getElementById("backToCatFromTypeBtn").addEventListener("click", resetCaptureStage);
-
 document.getElementById("backToTypeBtn").addEventListener("click", () => {
   document.getElementById("captureStage").classList.add("hidden");
   document.getElementById("typeStage").classList.remove("hidden");
@@ -863,19 +840,19 @@ document.getElementById("backToTypeBtn").addEventListener("click", () => {
 });
 
 function resetCaptureStage() {
-  pendingCategory = null;
   pendingSelection = null;
   pendingPhotoDataUrl = null;
   pendingLat = null;
   pendingLng = null;
-  document.getElementById("catStage").classList.remove("hidden");
-  document.getElementById("typeStage").classList.add("hidden");
+  document.getElementById("typeStage").classList.remove("hidden");
   document.getElementById("captureStage").classList.add("hidden");
   document.getElementById("pinStage").classList.add("hidden");
   document.getElementById("photoInputCamera").value = "";
   document.getElementById("photoInputAlbum").value = "";
-  renderCatPickGrid();
+  renderCatToggle();
+  renderTypeGrid();
 }
+resetCaptureStage(); // 発見ページを開いたら、すぐ種類選択が見える状態にしておく
 
 /* ---------------- 撮影 → 位置ピン確認 ---------------- */
 function handlePhotoSelected(e) {
