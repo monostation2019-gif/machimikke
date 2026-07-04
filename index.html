@@ -463,7 +463,7 @@ auth.onAuthStateChanged(user => {
 function renderProfile(user){
   const isAnon = user.isAnonymous;
   document.getElementById('profileName').textContent = isAnon ? "ゲストユーザー" : (user.displayName || "親方ファン");
-  document.getElementById('profileSub').textContent = isAnon ? "ログインすると記録が消えません" : user.email || "";
+  document.getElementById('profileSub').textContent = isAnon ? "ログインすると記録が消えません" : "ログイン済み";
   selectedAvatar = isAnon ? "👤" : "🧑";
   existingAvatarType = 'emoji';
   existingAvatarPhotoUrl = null;
