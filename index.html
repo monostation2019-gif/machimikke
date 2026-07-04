@@ -69,8 +69,11 @@ header{
   display:flex; align-items:center; justify-content:center; font-size:16px;
 }
 
+/* ---------- Main content area (header と nav の間) ---------- */
+#main-content{position:relative; flex:1; min-height:0;}
+
 /* ---------- Map area ---------- */
-#map-wrap{position:relative; z-index:1; flex:1; min-height:0;}
+#map-wrap{position:absolute; inset:0; z-index:1;}
 #map{position:absolute; inset:0;}
 .leaflet-control-layers{border-radius:12px !important; overflow:hidden; font-family:"Noto Sans JP", sans-serif;}
 .locate-btn{
@@ -227,6 +230,22 @@ nav.bottom button.active{color:var(--blue); font-weight:700;}
 
 /* ---------- Mypage ---------- */
 .profile-card{display:flex; align-items:center; gap:14px;}
+.edit-btn{
+  flex:none; width:34px; height:34px; border-radius:50%; border:none;
+  background:#F3F6FC; color:var(--blue); font-size:15px;
+}
+.avatar-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin-bottom:18px;}
+.avatar-cell{
+  aspect-ratio:1; border-radius:50%; background:#EFF2F8; border:2.5px solid transparent;
+  display:flex; align-items:center; justify-content:center; font-size:19px;
+}
+.avatar-cell.active{border-color:var(--blue); background:#EAF1FF;}
+.text-input{
+  width:100%; padding:13px 14px; border:1.5px solid var(--line); border-radius:12px;
+  font-size:14px; margin-bottom:4px; font-family:"Noto Sans JP", sans-serif; color:var(--ink);
+}
+.text-input:focus{border-color:var(--blue); outline:none;}
+.field-error{font-size:11.5px; color:var(--red); margin:0 0 14px; display:none;}
 .avatar{
   width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg, var(--blue), var(--teal));
   color:#fff; display:flex; align-items:center; justify-content:center; font-size:24px; flex:none;
@@ -263,6 +282,7 @@ nav.bottom button.active{color:var(--blue); font-weight:700;}
   <button class="header-btn" onclick="showToast('お知らせはまだありません')">🔔</button>
 </header>
 
+<div id="main-content">
 <div id="map-wrap">
   <div id="map"></div>
 
@@ -283,10 +303,11 @@ nav.bottom button.active{color:var(--blue); font-weight:700;}
 
   <div class="card profile-card">
     <div class="avatar" id="avatarInitial">👤</div>
-    <div>
+    <div style="flex:1; min-width:0;">
       <p class="profile-name" id="profileName">ゲストユーザー</p>
       <p class="profile-sub" id="profileSub">ログインすると記録が消えません</p>
     </div>
+    <button class="edit-btn" onclick="openProfileSheet()" title="プロフィールを編集">✎</button>
   </div>
 
   <div class="card">
@@ -317,6 +338,7 @@ nav.bottom button.active{color:var(--blue); font-weight:700;}
     <h3 style="margin:0 0 6px;">この機能は準備中です</h3>
     <p style="font-size:13px; margin:0;">データが集まり次第、フェーズ2で公開予定やで。もうしばらく待っててな。</p>
   </div>
+</div>
 </div>
 
 <nav class="bottom">
@@ -358,9 +380,24 @@ nav.bottom button.active{color:var(--blue); font-weight:700;}
   </div>
 </div>
 
-<script>
-/* =========================================================
-   Firebase 初期化
+<!-- プロフィール編集シート -->
+<div class="sheet-backdrop" id="profileSheetBackdrop">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h3>プロフィールを編集</h3>
+    <p class="sub">名前とアイコンはあとから何度でも変更できます</p>
+
+    <label class="section-label">アイコン</label>
+    <div class="avatar-grid" id="avatarGrid"></div>
+
+    <label class="section-label">名前</label>
+    <input type="text" id="nameInput" class="text-input" placeholder="ニックネームを入力（12文字まで）" maxlength="12">
+    <p class="field-error" id="nameError"></p>
+
+    <button class="btn-primary" id="profileSaveBtn" onclick="saveProfile()">保存する</button>
+    <button class="btn-ghost" onclick="closeProfileSheet()">キャンセル</button>
+  </div>
+</div>
    ↓ 既存の poisute-map-ise プロジェクトの設定値に置き換えてください
 ========================================================= */
 const firebaseConfig = {
@@ -381,6 +418,7 @@ auth.onAuthStateChanged(user => {
   if (user) {
     currentUser = user;
     renderProfile(user);
+    loadUserProfile(user.uid);
     loadMyStats(user.uid);
   } else {
     auth.signInAnonymously().catch(err => console.error("匿名ログイン失敗:", err));
@@ -392,6 +430,22 @@ function renderProfile(user){
   document.getElementById('profileName').textContent = isAnon ? "ゲストユーザー" : (user.displayName || "親方ファン");
   document.getElementById('profileSub').textContent = isAnon ? "ログインすると記録が消えません" : user.email || "";
   document.getElementById('avatarInitial').textContent = isAnon ? "👤" : "🧑";
+}
+
+function loadUserProfile(uid){
+  db.collection('users').doc(uid).get().then(doc => {
+    if (doc.exists){
+      const d = doc.data();
+      if (d.nickname){
+        profileNickname = d.nickname;
+        document.getElementById('profileName').textContent = d.nickname;
+      }
+      if (d.avatar){
+        selectedAvatar = d.avatar;
+        document.getElementById('avatarInitial').textContent = d.avatar;
+      }
+    }
+  }).catch(err => console.error('プロフィール取得エラー:', err));
 }
 
 function signInGoogle(){
@@ -418,6 +472,87 @@ function loadMyStats(uid){
     document.getElementById('statPoints').textContent = count * 10;
     document.getElementById('statBadges').textContent = Math.floor(count / 10);
   }).catch(err => console.error(err));
+}
+
+/* =========================================================
+   プロフィール編集（ニックネーム・アイコン / 重複防止つき）
+========================================================= */
+const AVATAR_OPTIONS = ['👤','🧑','🧑‍🌾','🧑‍🔧','🧑‍🚀','🧑‍🎨','👩','👨','🐢','🐟','🦀','🐳','🌿','⚓','🏝️','🦭'];
+let profileNickname = null;
+let selectedAvatar = '👤';
+
+function renderAvatarGrid(){
+  const grid = document.getElementById('avatarGrid');
+  grid.innerHTML = '';
+  AVATAR_OPTIONS.forEach(em => {
+    const cell = document.createElement('div');
+    cell.className = 'avatar-cell' + (selectedAvatar === em ? ' active' : '');
+    cell.textContent = em;
+    cell.onclick = () => { selectedAvatar = em; renderAvatarGrid(); };
+    grid.appendChild(cell);
+  });
+}
+
+function openProfileSheet(){
+  document.getElementById('nameError').style.display = 'none';
+  document.getElementById('nameInput').value = profileNickname || '';
+  renderAvatarGrid();
+  document.getElementById('profileSheetBackdrop').classList.add('open');
+}
+function closeProfileSheet(){ document.getElementById('profileSheetBackdrop').classList.remove('open'); }
+
+function normalizeName(name){
+  return name.trim().toLowerCase().replace(/\s+/g, '');
+}
+
+async function saveProfile(){
+  if (!currentUser) return;
+  const input = document.getElementById('nameInput');
+  const raw = input.value.trim();
+  const errEl = document.getElementById('nameError');
+  errEl.style.display = 'none';
+
+  if (!raw){ errEl.textContent = '名前を入力してください'; errEl.style.display = 'block'; return; }
+  const key = normalizeName(raw);
+  if (!key){ errEl.textContent = '使用できない名前です'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('profileSaveBtn');
+  btn.disabled = true; btn.textContent = '保存中…';
+
+  const usernameRef = db.collection('usernames').doc(key);
+  const userRef = db.collection('users').doc(currentUser.uid);
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const nameSnap = await tx.get(usernameRef);
+      if (nameSnap.exists && nameSnap.data().uid !== currentUser.uid){
+        throw new Error('DUPLICATE');
+      }
+      const userSnap = await tx.get(userRef);
+      const oldKey = userSnap.exists ? userSnap.data().nameKey : null;
+      if (oldKey && oldKey !== key){
+        tx.delete(db.collection('usernames').doc(oldKey));
+      }
+      tx.set(usernameRef, { uid: currentUser.uid, name: raw });
+      tx.set(userRef, { nickname: raw, nameKey: key, avatar: selectedAvatar }, { merge: true });
+    });
+
+    profileNickname = raw;
+    document.getElementById('profileName').textContent = raw;
+    document.getElementById('avatarInitial').textContent = selectedAvatar;
+    closeProfileSheet();
+    showToast('プロフィールを更新しました');
+  } catch (err) {
+    if (err.message === 'DUPLICATE'){
+      errEl.textContent = 'その名前はすでに使われています。別の名前をお試しください';
+      errEl.style.display = 'block';
+    } else {
+      console.error('プロフィール保存エラー:', err);
+      showToast('保存に失敗しました。もう一度お試しください');
+    }
+  } finally {
+    btn.disabled = false; btn.textContent = '保存する';
+  }
 }
 
 /* =========================================================
