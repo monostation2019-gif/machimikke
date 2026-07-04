@@ -1,7 +1,7 @@
 {
-  "name": "ポイ捨てゴミマップ",
-  "short_name": "ゴミマップ",
-  "description": "みんなでつくる、きれいな未来の地図",
+  "name": "まちみっけ｜伊勢市限定版",
+  "short_name": "まちみっけ",
+  "description": "みんなでつくる、きれいな伊勢市の地図",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#F5F8FC",

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>ポイ捨てゴミマップ</title>
+<title>まちみっけ｜伊勢市限定版</title>
 <meta name="theme-color" content="#2F6FED">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -58,8 +58,11 @@ header{
   display:flex; align-items:center; justify-content:space-between;
   box-shadow:0 4px 14px rgba(47,111,237,0.25);
 }
-.brand{font-weight:900; font-size:17px; display:flex; align-items:center; gap:8px;}
-.brand .leaf{font-size:18px;}
+.brand{display:flex; align-items:center; gap:8px;}
+.brand .leaf{font-size:20px;}
+.brand-text{display:flex; flex-direction:column; line-height:1.15;}
+.brand-text .name{font-weight:900; font-size:17px;}
+.brand-text .sub{font-size:10.5px; font-weight:500; color:rgba(255,255,255,0.85); letter-spacing:.03em;}
 .header-btn{
   width:36px; height:36px; border-radius:50%;
   background:rgba(255,255,255,0.18); border:none; color:#fff;
@@ -117,6 +120,19 @@ nav.bottom button{
 }
 nav.bottom button .ic{font-size:19px;}
 nav.bottom button.active{color:var(--blue); font-weight:700;}
+
+.nav-report{
+  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+  border:none; background:none; margin-top:-30px; font-family:"Noto Sans JP", sans-serif;
+}
+.nav-report .ic-report{
+  width:52px; height:52px; border-radius:50%;
+  background:linear-gradient(135deg, var(--teal), #2c8879); color:#fff; font-size:26px;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 8px 20px rgba(63,167,150,0.45); margin-bottom:3px; border:4px solid var(--card);
+}
+.nav-report .rlabel{font-size:10.5px; color:var(--muted); font-weight:700;}
+.nav-report:active .ic-report{transform:scale(0.94);}
 
 /* ---------- Views ---------- */
 .view{position:absolute; inset:0; background:var(--bg); overflow-y:auto; z-index:10;}
@@ -229,7 +245,13 @@ nav.bottom button.active{color:var(--blue); font-weight:700;}
 <body>
 
 <header>
-  <div class="brand"><span class="leaf">🌿</span>ポイ捨てゴミマップ</div>
+  <div class="brand">
+    <span class="leaf">🌿</span>
+    <div class="brand-text">
+      <span class="name">まちみっけ</span>
+      <span class="sub">伊勢市限定版</span>
+    </div>
+  </div>
   <button class="header-btn" onclick="showToast('お知らせはまだありません')">🔔</button>
 </header>
 
@@ -244,7 +266,6 @@ nav.bottom button.active{color:var(--blue); font-weight:700;}
     <button class="close" onclick="document.getElementById('mentorChip').style.display='none'">✕</button>
   </div>
 
-  <button class="fab-report" onclick="openSheet()">＋</button>
   <div class="toast" id="toast"></div>
 </div>
 
@@ -293,6 +314,7 @@ nav.bottom button.active{color:var(--blue); font-weight:700;}
 <nav class="bottom">
   <button class="nav-btn active" data-view="map"><span class="ic">🏠</span>ホーム</button>
   <button class="nav-btn" data-view="soon"><span class="ic">📈</span>タイムライン</button>
+  <button class="nav-report" onclick="openSheet()"><span class="ic-report">＋</span><span class="rlabel">投稿</span></button>
   <button class="nav-btn" data-view="soon"><span class="ic">🏆</span>ランキング</button>
   <button class="nav-btn" data-view="mypage"><span class="ic">🙋</span>マイページ</button>
 </nav>
