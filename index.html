@@ -57,6 +57,7 @@ img{max-width:100%; display:block;}
   display:flex; align-items:center; justify-content:center; gap:10px; transition:transform .1s ease, opacity .15s;
 }
 .btn:active{transform:scale(.97);}
+.btn:disabled{opacity:.4; pointer-events:none;}
 .btn-google{background:#fff; color:#333;}
 .btn-apple{background:#000; color:#fff;}
 .btn-guest{background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.5);}
@@ -132,6 +133,36 @@ img{max-width:100%; display:block;}
 .cameraBox .ic{font-size:52px; margin-bottom:10px;}
 .cameraBox p{font-size:13px; color:var(--gray); margin:6px 0 18px;}
 input[type=file]{display:none;}
+
+/* ---------- Category / Type picker (manual selection, no AI) ---------- */
+.catPickGrid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:0 18px 18px;}
+.catPickBtn{
+  display:flex; flex-direction:column; align-items:center; gap:8px; background:#fff;
+  border:2px solid var(--border); border-radius:16px; padding:16px 4px; font-size:12px; font-weight:700; color:var(--ink);
+}
+.catPickBtn .circle{width:50px; height:50px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px;}
+.catPickBtn.active{border-color:var(--green-2);}
+
+.typeGrid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:6px 0 4px;}
+.typeBtn{
+  display:flex; flex-direction:column; align-items:center; gap:6px; background:#fff;
+  border:2px solid var(--border); border-radius:14px; padding:12px 4px; font-size:11.5px; font-weight:700; color:var(--ink);
+}
+.typeBtn .ic{font-size:24px;}
+.typeBtn.active{border-color:var(--green-2); background:var(--green-pale); color:var(--green);}
+
+.speciesSearchBox{margin:6px 0 10px;}
+.speciesSearchBox input{
+  width:100%; box-sizing:border-box; border:1.5px solid var(--border); border-radius:14px;
+  padding:12px 14px; font-size:14px; font-family:inherit; background:var(--cream);
+}
+.speciesList{display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; padding-right:2px;}
+.speciesRow{display:flex; align-items:center; gap:12px; background:#fff; border:1.5px solid var(--border); border-radius:14px; padding:10px 12px;}
+.speciesRow .ic{font-size:20px;}
+.speciesRow .nm{font-weight:700; font-size:13.5px;}
+.speciesRow .en{font-size:11px; color:var(--gray);}
+.speciesRow.active{border-color:var(--green-2); background:var(--green-pale);}
+.speciesEmpty{text-align:center; color:var(--gray); font-size:12.5px; padding:16px 0;}
 
 .previewCard{margin:8px 18px; background:#fff; border-radius:20px; overflow:hidden; box-shadow:var(--shadow);}
 .previewCard img{width:100%; height:230px; object-fit:cover; background:#eee;}
@@ -243,7 +274,7 @@ input[type=file]{display:none;}
       <div class="logo">まち<span>みっけ</span> 🔍</div>
       <div class="badge">伊勢市限定版</div>
     </div>
-    <p class="tagline">歩いて、走って、見つけよう。<br>まちで見つけたものを写真で記録。<br>AIが判定して、みんなの図鑑になります。</p>
+    <p class="tagline">歩いて、走って、見つけよう。<br>まちで見つけたものを写真で記録。<br>種類をえらんで、みんなの図鑑になります。</p>
     <div class="authBtns">
       <button class="btn btn-google" id="googleLoginBtn">
         <span>🔎</span> Googleでログイン
@@ -297,17 +328,23 @@ input[type=file]{display:none;}
 
   <!-- ================= 発見 (camera) ================= -->
   <section class="screen" id="screen-discover">
-    <div id="captureStage">
+    <div id="catStage">
+      <div class="section-title" style="margin-top:14px;">なにを見つけましたか？</div>
+      <div class="catPickGrid" id="catPickGrid"></div>
+    </div>
+
+    <div id="captureStage" class="hidden">
       <div class="cameraStage">
         <div class="cameraBox">
           <div class="ic">📷</div>
-          <p>見つけたものを撮影してください<br>AIが自動で種類を判定します</p>
+          <p id="captureHint">見つけたものを撮影してください</p>
           <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
             <label class="btn btn-primary" style="display:inline-flex;" for="photoInputCamera">📷 写真を撮る</label>
             <label class="btn btn-outline" style="display:inline-flex;" for="photoInputAlbum">🖼️ アルバムから選択</label>
           </div>
           <input type="file" id="photoInputCamera" accept="image/*" capture="environment">
           <input type="file" id="photoInputAlbum" accept="image/*">
+          <button class="btn btn-outline" id="backToCatBtn" style="margin-top:14px; width:100%;">‹ 図鑑の種類を選び直す</button>
         </div>
       </div>
     </div>
@@ -316,18 +353,10 @@ input[type=file]{display:none;}
       <div class="previewCard">
         <img id="previewImg" src="" alt="撮影した写真">
         <div class="resultBox">
-          <div style="font-size:12px; color:var(--gray); font-weight:700; margin-bottom:4px;">AI判定結果</div>
-          <div class="resultTop">
-            <div>
-              <div class="name" id="resultName">-</div>
-              <div class="en" id="resultNameEn">-</div>
-            </div>
-            <div class="pct" id="resultPct">-</div>
-          </div>
-          <div style="font-size:12px; color:var(--gray); margin-top:12px;">ほかの候補</div>
-          <div class="subChoices" id="subChoices"></div>
+          <div style="font-size:12px; color:var(--gray); font-weight:700; margin-bottom:8px;" id="selectStageLabel">種類を選んでください</div>
+          <div id="selectStage"></div>
           <div class="resultBtns">
-            <button class="btn btn-primary" id="registerBtn">この結果で登録する</button>
+            <button class="btn btn-primary" id="registerBtn" disabled>この内容で登録する</button>
             <button class="btn btn-outline" id="retakeBtn">撮り直す</button>
           </div>
         </div>
@@ -404,7 +433,7 @@ input[type=file]{display:none;}
 <script type="module">
 /* =========================================================================
    まちみっけ｜伊勢市限定版 — app logic
-   Firebase (Auth + Firestore) + Leaflet GPS map + mock AI classification.
+   Firebase (Auth + Firestore) + Leaflet GPS map + manual type/species selection (no AI).
 
    >>> SETUP: fill in your own Firebase project config below <<<
    ========================================================================= */
@@ -448,46 +477,99 @@ const CATEGORIES = [
   { id: "other",   name: "その他いろいろ", emoji: "🔍", color: "#8a8a82" },
 ];
 
-// Mock AI candidate pools per category — swap fetchAIClassification() below
-// for a real call (e.g. a Cloud Function that proxies an image-classification API).
-const MOCK_RESULTS = {
+/* ---------------- ゴミの種類（アイコンボタンで選択） ----------------
+   写真によるAI自動判定は精度が不十分（同じ写真でも結果が変わる）で、
+   撮り直しや誤登録・図鑑の乱れの原因になっていたため廃止。
+   決まった種類一覧からユーザー自身がタップして選ぶ方式にする。 */
+const WASTE_TYPES = {
   poi: [
-    { name: "空き缶（アルミ缶）", en: "Aluminum can", pct: 94, others: [["スチール缶", 5], ["ペットボトル", 1]] },
-    { name: "ペットボトル", en: "PET bottle", pct: 88, others: [["空き缶", 8], ["ビニール袋", 4]] },
-    { name: "たばこの吸い殻", en: "Cigarette butt", pct: 91, others: [["紙くず", 6], ["その他", 3]] },
-  ],
-  flower: [
-    { name: "ハマヒルガオ", en: "Beach morning glory", pct: 90, others: [["コスモス", 6], ["その他", 4]] },
-    { name: "アジサイ", en: "Hydrangea", pct: 93, others: [["ツツジ", 5], ["その他", 2]] },
-  ],
-  bird: [
-    { name: "ハクセキレイ", en: "White wagtail", pct: 87, others: [["スズメ", 9], ["その他", 4]] },
-    { name: "アオサギ", en: "Grey heron", pct: 92, others: [["ダイサギ", 6], ["その他", 2]] },
-  ],
-  insect: [
-    { name: "モンシロチョウ", en: "Cabbage white", pct: 89, others: [["アゲハチョウ", 7], ["その他", 4]] },
-  ],
-  tree: [
-    { name: "クスノキ", en: "Camphor tree", pct: 85, others: [["ケヤキ", 10], ["その他", 5]] },
+    { id: "can",       name: "空き缶",             emoji: "🥫" },
+    { id: "pet",       name: "ペットボトル",        emoji: "🧴" },
+    { id: "bag",       name: "ビニール袋",          emoji: "🛍️" },
+    { id: "cigarette", name: "たばこの吸い殻",      emoji: "🚬" },
+    { id: "paper",     name: "紙くず・チラシ",      emoji: "📄" },
+    { id: "food",      name: "食品容器・包装",      emoji: "🍱" },
+    { id: "glass",     name: "ガラスくず",          emoji: "🍾" },
+    { id: "metal",     name: "金属くず",            emoji: "🔩" },
+    { id: "dump",      name: "不法投棄（家電等）",  emoji: "🚮" },
+    { id: "other",     name: "その他",              emoji: "❔" },
   ],
   umigomi: [
-    { name: "発泡スチール片", en: "Styrofoam fragment", pct: 90, others: [["漁具ロープ", 6], ["その他", 4]] },
-    { name: "漁網（廃棄）", en: "Discarded fishing net", pct: 86, others: [["ペットボトル", 9], ["その他", 5]] },
-  ],
-  other: [
-    { name: "分類不明の物体", en: "Unclassified item", pct: 62, others: [["その他", 38]] },
+    { id: "plastic",   name: "プラスチック片",      emoji: "🧩" },
+    { id: "styro",     name: "発泡スチロール片",    emoji: "🧊" },
+    { id: "pet",       name: "ペットボトル",        emoji: "🧴" },
+    { id: "gear",      name: "漁具・ロープ",        emoji: "🪢" },
+    { id: "net",       name: "漁網",                emoji: "🕸️" },
+    { id: "wood",      name: "木材・流木",          emoji: "🪵" },
+    { id: "can",       name: "缶・金属くず",        emoji: "🥫" },
+    { id: "glass",     name: "ガラス・陶器",        emoji: "🍾" },
+    { id: "cloth",     name: "布・繊維くず",        emoji: "🧵" },
+    { id: "other",     name: "その他",              emoji: "❔" },
   ],
 };
 
-async function fetchAIClassification(categoryId) {
-  // Placeholder "AI" — picks a random plausible result for the category.
-  // Replace with e.g.:
-  //   const res = await fetch("https://YOUR_CLOUD_FUNCTION/classify", {method:"POST", body:...});
-  //   return await res.json();
-  await new Promise(r => setTimeout(r, 700)); // simulate inference latency
-  const pool = MOCK_RESULTS[categoryId] || MOCK_RESULTS.other;
-  return pool[Math.floor(Math.random() * pool.length)];
-}
+/* ---------------- 生き物・植物の候補リスト（検索して選ぶ） ----------------
+   伊勢志摩エリアでよく見られる代表的な種類の初期リスト（たたき台）です。
+   実際に観察してみて「違う」「リストにない」ものが多ければ、
+   このSPECIES_DBに随時追加・修正していってください。 */
+const SPECIES_DB = {
+  flower: [
+    { name: "ハマヒルガオ",         en: "Beach morning glory", emoji: "🌸" },
+    { name: "ハマゴウ",             en: "Beach vitex",         emoji: "🌸" },
+    { name: "スカシユリ",           en: "Coastal lily",        emoji: "🌼" },
+    { name: "ハマダイコン",         en: "Wild radish",         emoji: "🌸" },
+    { name: "ノアザミ",             en: "Japanese thistle",    emoji: "🌸" },
+    { name: "ヒルガオ",             en: "Field bindweed",      emoji: "🌸" },
+    { name: "ネコノシタ（ハマグルマ）", en: "Beach sunflower",  emoji: "🌼" },
+    { name: "コセンダングサ",       en: "Beggar-ticks",        emoji: "🌼" },
+    { name: "セイタカアワダチソウ", en: "Goldenrod",           emoji: "🌼" },
+    { name: "タチアオイ",           en: "Hollyhock",           emoji: "🌺" },
+    { name: "アジサイ",             en: "Hydrangea",           emoji: "💠" },
+    { name: "ツワブキ",             en: "Leopard plant",       emoji: "🌼" },
+  ],
+  bird: [
+    { name: "アオサギ",       en: "Grey heron",         emoji: "🐦" },
+    { name: "ダイサギ",       en: "Great egret",        emoji: "🐦" },
+    { name: "コサギ",         en: "Little egret",       emoji: "🐦" },
+    { name: "イソヒヨドリ",   en: "Blue rock thrush",   emoji: "🐦" },
+    { name: "ウミネコ",       en: "Black-tailed gull",  emoji: "🕊️" },
+    { name: "トビ",           en: "Black kite",         emoji: "🦅" },
+    { name: "ミサゴ",         en: "Osprey",             emoji: "🦅" },
+    { name: "カワウ",         en: "Great cormorant",    emoji: "🐦" },
+    { name: "カルガモ",       en: "Spot-billed duck",   emoji: "🦆" },
+    { name: "ハクセキレイ",   en: "White wagtail",      emoji: "🐦" },
+    { name: "ヒヨドリ",       en: "Brown-eared bulbul", emoji: "🐦" },
+    { name: "スズメ",         en: "Tree sparrow",       emoji: "🐦" },
+  ],
+  insect: [
+    { name: "モンシロチョウ",     en: "Cabbage white",      emoji: "🦋" },
+    { name: "ナミアゲハ",         en: "Swallowtail",        emoji: "🦋" },
+    { name: "アキアカネ（赤とんぼ）", en: "Red dragonfly",  emoji: "🪰" },
+    { name: "ショウリョウバッタ", en: "Rice grasshopper",   emoji: "🦗" },
+    { name: "アブラゼミ",         en: "Cicada",             emoji: "🦗" },
+    { name: "クマゼミ",           en: "Large cicada",       emoji: "🦗" },
+    { name: "テントウムシ",       en: "Ladybug",            emoji: "🐞" },
+    { name: "カナブン",           en: "Beetle",             emoji: "🪲" },
+    { name: "ハラビロカマキリ",   en: "Praying mantis",     emoji: "🦟" },
+    { name: "ヤマトシジミ",       en: "Pale grass blue",    emoji: "🦋" },
+    { name: "オオスズメバチ",     en: "Giant hornet",       emoji: "🐝" },
+    { name: "アリ",               en: "Ant",                emoji: "🐜" },
+  ],
+  tree: [
+    { name: "クロマツ",     en: "Black pine",          emoji: "🌲" },
+    { name: "クスノキ",     en: "Camphor tree",        emoji: "🌳" },
+    { name: "ウバメガシ",   en: "Ubame oak",           emoji: "🌳" },
+    { name: "トベラ",       en: "Japanese cheesewood", emoji: "🌳" },
+    { name: "ヤブツバキ",   en: "Camellia",            emoji: "🌳" },
+    { name: "ソテツ",       en: "Sago palm",           emoji: "🌴" },
+    { name: "センダン",     en: "Chinaberry",          emoji: "🌳" },
+    { name: "ヤマモモ",     en: "Japanese bayberry",   emoji: "🌳" },
+    { name: "スダジイ",     en: "Chinquapin",          emoji: "🌳" },
+    { name: "アコウ",       en: "Ficus superba",       emoji: "🌳" },
+    { name: "ハマヒサカキ", en: "Coastal eurya",       emoji: "🌳" },
+    { name: "マサキ",       en: "Japanese spindle",    emoji: "🌳" },
+  ],
+};
 
 /* ---------------- 伊勢市 全町名リスト（50音順） ----------------
    伊勢市公式「町別人口・世帯数統計表」（令和8年5月現在）に基づき、
@@ -782,52 +864,133 @@ function renderZukanGrid(el) {
 renderZukanGrid(document.getElementById("zukanGrid"));
 renderZukanGrid(document.getElementById("zukanGrid2"));
 
-/* ============================= Capture / AI flow ============================= */
+/* ============================= Capture flow (manual selection, no AI) ============================= */
 let pendingPhotoDataUrl = null;
-let pendingResult = null;
-let pendingCategory = "other";
+let pendingCategory = null;
+let pendingSelection = null; // { name, en, emoji }
+
+function renderCatPickGrid() {
+  const grid = document.getElementById("catPickGrid");
+  grid.innerHTML = CATEGORIES.filter(c => c.id !== "other").map(c => `
+    <button class="catPickBtn" data-cat="${c.id}">
+      <span class="circle" style="background:${c.color}22; color:${c.color};">${c.emoji}</span>
+      <span>${c.name.replace("図鑑", "")}</span>
+    </button>`).join("");
+  grid.querySelectorAll("[data-cat]").forEach(btn =>
+    btn.addEventListener("click", () => selectCategory(btn.dataset.cat))
+  );
+}
+
+function selectCategory(catId) {
+  pendingCategory = catId;
+  document.getElementById("catStage").classList.add("hidden");
+  document.getElementById("captureStage").classList.remove("hidden");
+  const cat = CATEGORIES.find(c => c.id === catId);
+  document.getElementById("captureHint").textContent = `「${cat.name}」に登録します。写真を撮ってください`;
+}
 
 function resetCaptureStage() {
-  document.getElementById("captureStage").classList.remove("hidden");
+  pendingCategory = null;
+  pendingSelection = null;
+  pendingPhotoDataUrl = null;
+  document.getElementById("catStage").classList.remove("hidden");
+  document.getElementById("captureStage").classList.add("hidden");
   document.getElementById("resultStage").classList.add("hidden");
   document.getElementById("photoInputCamera").value = "";
   document.getElementById("photoInputAlbum").value = "";
+  renderCatPickGrid();
+}
+document.getElementById("backToCatBtn").addEventListener("click", resetCaptureStage);
+
+// 種類選択エリアを描画。ゴミ系＝アイコンボタン、自然系＝検索リスト、その他＝自由入力。
+function renderSelectStage() {
+  const el = document.getElementById("selectStage");
+  const label = document.getElementById("selectStageLabel");
+  const registerBtn = document.getElementById("registerBtn");
+  pendingSelection = null;
+  registerBtn.disabled = true;
+
+  if (WASTE_TYPES[pendingCategory]) {
+    label.textContent = "見つけたゴミの種類をえらんでください";
+    const types = WASTE_TYPES[pendingCategory];
+    el.innerHTML = `<div class="typeGrid">${types.map(t => `
+      <button class="typeBtn" data-id="${t.id}"><span class="ic">${t.emoji}</span><span>${t.name}</span></button>
+    `).join("")}</div>`;
+    el.querySelectorAll(".typeBtn").forEach(btn => btn.addEventListener("click", () => {
+      el.querySelectorAll(".typeBtn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const t = types.find(x => x.id === btn.dataset.id);
+      pendingSelection = { name: t.name, en: "", emoji: t.emoji };
+      registerBtn.disabled = false;
+    }));
+  } else if (SPECIES_DB[pendingCategory]) {
+    label.textContent = "名前を検索してえらんでください（見つからなければ近いものでOK）";
+    el.innerHTML = `
+      <div class="speciesSearchBox"><input type="text" id="speciesSearchInput" placeholder="名前で検索…"></div>
+      <div class="speciesList" id="speciesListEl"></div>`;
+    const items = SPECIES_DB[pendingCategory];
+    const listEl = document.getElementById("speciesListEl");
+    function drawList(filter) {
+      const f = (filter || "").trim();
+      const filtered = f
+        ? items.filter(it => it.name.includes(f) || it.en.toLowerCase().includes(f.toLowerCase()))
+        : items;
+      listEl.innerHTML = filtered.length
+        ? filtered.map(it => `
+          <div class="speciesRow" data-name="${it.name}">
+            <span class="ic">${it.emoji}</span>
+            <div><div class="nm">${it.name}</div><div class="en">${it.en}</div></div>
+          </div>`).join("")
+        : `<div class="speciesEmpty">候補が見つかりません。ネットで調べて、近い種類を選ぶか<br>あとで管理画面から名前を修正してください。</div>`;
+      listEl.querySelectorAll(".speciesRow").forEach(row => row.addEventListener("click", () => {
+        listEl.querySelectorAll(".speciesRow").forEach(r => r.classList.remove("active"));
+        row.classList.add("active");
+        const it = items.find(x => x.name === row.dataset.name);
+        pendingSelection = { name: it.name, en: it.en, emoji: it.emoji };
+        registerBtn.disabled = false;
+      }));
+    }
+    drawList("");
+    document.getElementById("speciesSearchInput").addEventListener("input", (e) => drawList(e.target.value));
+  } else {
+    label.textContent = "見つけたものの名前を入力してください";
+    el.innerHTML = `<div class="speciesSearchBox"><input type="text" id="otherNameInput" placeholder="例：カニのはさみ など"></div>`;
+    document.getElementById("otherNameInput").addEventListener("input", (e) => {
+      const v = e.target.value.trim();
+      pendingSelection = v ? { name: v, en: "", emoji: "🔍" } : null;
+      registerBtn.disabled = !v;
+    });
+  }
 }
 
-async function handlePhotoSelected(e) {
+function handlePhotoSelected(e) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = async () => {
+  reader.onload = () => {
     pendingPhotoDataUrl = reader.result;
     document.getElementById("previewImg").src = pendingPhotoDataUrl;
     document.getElementById("captureStage").classList.add("hidden");
     document.getElementById("resultStage").classList.remove("hidden");
-    document.getElementById("resultName").textContent = "判定中…";
-    document.getElementById("resultNameEn").textContent = "";
-    document.getElementById("resultPct").textContent = "";
-    document.getElementById("subChoices").innerHTML = "";
-
-    // naive random category pick for the mock — a real backend would infer this from the image
-    pendingCategory = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)].id;
-    pendingResult = await fetchAIClassification(pendingCategory);
-
-    document.getElementById("resultName").textContent = pendingResult.name;
-    document.getElementById("resultNameEn").textContent = pendingResult.en;
-    document.getElementById("resultPct").textContent = pendingResult.pct + "%";
-    document.getElementById("subChoices").innerHTML = pendingResult.others
-      .map(([n, p]) => `<span class="subChip">${n} ${p}%</span>`).join("");
+    renderSelectStage();
   };
   reader.readAsDataURL(file);
 }
 document.getElementById("photoInputCamera").addEventListener("change", handlePhotoSelected);
 document.getElementById("photoInputAlbum").addEventListener("change", handlePhotoSelected);
 
-document.getElementById("retakeBtn").addEventListener("click", resetCaptureStage);
+document.getElementById("retakeBtn").addEventListener("click", () => {
+  pendingPhotoDataUrl = null;
+  pendingSelection = null;
+  document.getElementById("resultStage").classList.add("hidden");
+  document.getElementById("captureStage").classList.remove("hidden");
+  document.getElementById("photoInputCamera").value = "";
+  document.getElementById("photoInputAlbum").value = "";
+});
 
 document.getElementById("registerBtn").addEventListener("click", async () => {
-  if (!pendingResult) return;
-  if (!db || !currentUser) { toast("この結果で登録しました（デモ）"); resetCaptureStage(); showScreen("home"); return; }
+  if (!pendingSelection) return;
+  if (!db || !currentUser) { toast("この内容で登録しました（デモ）"); resetCaptureStage(); showScreen("home"); return; }
 
   navigator.geolocation?.getCurrentPosition(async (pos) => {
     await saveDiscovery(pos.coords.latitude, pos.coords.longitude);
@@ -841,9 +1004,8 @@ async function saveDiscovery(lat, lng) {
     await addDoc(collection(db, "discoveries"), {
       uid: currentUser.uid,
       category: pendingCategory,
-      name: pendingResult.name,
-      nameEn: pendingResult.en,
-      confidence: pendingResult.pct,
+      name: pendingSelection.name,
+      nameEn: pendingSelection.en,
       photo: pendingPhotoDataUrl, // NOTE: for production, upload to Firebase Storage instead of inline base64
       lat, lng,
       createdAt: serverTimestamp(),
@@ -851,7 +1013,7 @@ async function saveDiscovery(lat, lng) {
     await setDoc(doc(db, "users", currentUser.uid), {
       finds: increment(1), species: increment(1),
     }, { merge: true });
-    toast("この結果で登録しました！");
+    toast("この内容で登録しました！");
   } catch (e) {
     console.error(e);
     toast("登録に失敗しました");
