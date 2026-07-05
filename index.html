@@ -2425,7 +2425,12 @@ window.addEventListener('unhandledrejection', (e) => {
 ========================================================= */
 if ('serviceWorker' in navigator){
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').then(reg => {
+    // updateViaCache:'none' を指定し、sw.js自体をブラウザのHTTPキャッシュから
+    // 取得しないようにする。これを指定しないと、初回は正しく更新検知できても、
+    // 2回目以降はブラウザに残った古いsw.jsのHTTPキャッシュが使われてしまい、
+    // 「サーバー上のsw.jsを書き換えても変化なしと判定されて自動更新が効かない」
+    // という不具合が起きる。
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
       // すでに新しいバージョンが待機中ならすぐバナーを出す
       if (reg.waiting) showUpdateBanner(reg);
 
@@ -2446,6 +2451,9 @@ if ('serviceWorker' in navigator){
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') reg.update();
       });
+      // タブがフォアグラウンドに戻ってきた時（pageshowはbfcache復帰も拾える）にも
+      // チェックしておくと、ホーム画面アイコンから開き直した時の検知漏れを減らせる
+      window.addEventListener('pageshow', () => reg.update());
     }).catch(err => console.warn('SW登録失敗:', err));
 
     // 新しいService Workerが有効化されたら、一度だけ自動でページを再読み込みする
