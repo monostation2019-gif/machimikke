@@ -69,6 +69,24 @@ header{
   display:flex; align-items:center; justify-content:center; font-size:16px;
 }
 
+/* ---------- ゴミ種類フィルターバー(ヘッダー直下) ---------- */
+#filterBar{
+  position:relative; z-index:20; flex:none;
+  display:flex; gap:6px; overflow-x:auto; white-space:nowrap;
+  padding:8px 12px; background:var(--card);
+  border-bottom:1px solid var(--line);
+  -webkit-overflow-scrolling:touch; scrollbar-width:none;
+}
+#filterBar::-webkit-scrollbar{display:none;}
+.filter-chip{
+  flex:none; border:1.5px solid var(--line); background:#fff; border-radius:999px;
+  padding:5px 12px; font-size:11px; color:var(--muted); font-weight:700;
+  display:inline-flex; align-items:center; gap:4px; font-family:"Noto Sans JP", sans-serif;
+  white-space:nowrap;
+}
+.filter-chip .fe{font-size:13px;}
+.filter-chip.active{border-color:var(--blue); color:var(--blue); background:#EAF1FF;}
+
 /* ---------- Main content area (header と nav の間) ---------- */
 #main-content{position:relative; flex:1; min-height:0;}
 
@@ -168,6 +186,12 @@ nav.bottom button.active{color:var(--blue); font-weight:700;}
 .pin-popup h4{margin:0 0 4px; font-size:15px;}
 .pin-popup .meta{font-size:11.5px; color:var(--muted); margin-bottom:6px;}
 .pin-popup img{width:100%; border-radius:10px; margin-top:4px;}
+.pin-popup .reporter{font-size:11.5px; color:var(--muted); margin-top:6px;}
+.popup-redo-btn{
+  width:100%; margin-top:10px; border:none; border-radius:10px; padding:9px;
+  background:#FDE7E4; color:var(--red); font-weight:700; font-size:12px;
+  font-family:"Noto Sans JP", sans-serif;
+}
 
 /* ---------- Report Sheet ---------- */
 .sheet-backdrop{
@@ -302,6 +326,8 @@ nav.bottom button.active{color:var(--blue); font-weight:700;}
   </div>
   <button class="header-btn" onclick="showToast('お知らせはまだありません')">🔔</button>
 </header>
+
+<div id="filterBar"></div>
 
 <div id="main-content">
 <div id="map-wrap">
@@ -842,36 +868,75 @@ function buildDivIcon(item){
   });
 }
 
-function renderPopup(d){
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderPopup(d, id){
   const conf = CONFIDENCE_LABEL[d.confidence] || CONFIDENCE_LABEL['未確認'];
   const date = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString('ja-JP') : '';
-  const photo = (d.photos && d.photos[0]) ? `<img src="${d.photos[0]}">` : '';
+  const reporterName = escapeHtml(d.reporterName || '無記名');
+  const photo = (d.photos && d.photos[0])
+    ? `<img src="${d.photos[0]}"><div class="reporter">投稿者：${reporterName}</div>`
+    : `<div class="reporter">投稿者：${reporterName}</div>`;
+  const isOwner = !!(currentUser && d.reportedBy === currentUser.uid);
+  const redoBtn = isOwner
+    ? `<button class="popup-redo-btn" onclick="redoReport('${id}')">↺ 削除してやり直す</button>`
+    : '';
   return `<div class="pin-popup">
     <span class="badge ${conf.cls}">${conf.txt}</span>
     <h4>${d.itemType || 'ゴミ'}</h4>
     <div class="meta">${date}${d.area && d.area.town ? ' ・ ' + d.area.town : ''}</div>
     ${photo}
+    ${redoBtn}
   </div>`;
+}
+
+let allReports = [];
+let activeFilter = 'all';
+
+function renderMarkers(){
+  markersLayer.clearLayers();
+  const heatPoints = [];
+  allReports.forEach(({ id, d }) => {
+    if (!d.location) return;
+    if (activeFilter !== 'all' && d.itemType !== activeFilter) return;
+    const lat = d.location.latitude, lng = d.location.longitude;
+    heatPoints.push([lat, lng, 0.6]);
+    const marker = L.marker([lat,lng], { icon: buildDivIcon(d) });
+    marker.bindPopup(renderPopup(d, id));
+    markersLayer.addLayer(marker);
+  });
+  if (heatLayer) map.removeLayer(heatLayer);
+  heatLayer = L.heatLayer(heatPoints, { radius:32, blur:24, maxZoom:16 }).addTo(map);
 }
 
 function loadReports(){
   db.collection('reports').orderBy('createdAt','desc').limit(500).onSnapshot(snap => {
-    markersLayer.clearLayers();
-    const heatPoints = [];
-    snap.forEach(doc => {
-      const d = doc.data();
-      if (!d.location) return;
-      const lat = d.location.latitude, lng = d.location.longitude;
-      heatPoints.push([lat, lng, 0.6]);
-      const marker = L.marker([lat,lng], { icon: buildDivIcon(d) });
-      marker.bindPopup(renderPopup(d));
-      markersLayer.addLayer(marker);
-    });
-    if (heatLayer) map.removeLayer(heatLayer);
-    heatLayer = L.heatLayer(heatPoints, { radius:32, blur:24, maxZoom:16 }).addTo(map);
+    allReports = [];
+    snap.forEach(doc => allReports.push({ id: doc.id, d: doc.data() }));
+    renderMarkers();
   }, err => console.error('reports取得エラー:', err));
 }
 loadReports();
+
+/**
+ * 自分が投稿したピンを削除して、やり直せるようにする
+ */
+async function redoReport(id){
+  if (!currentUser) return;
+  const ok = confirm('この投稿を削除して、もう一度投稿し直しますか？');
+  if (!ok) return;
+  try {
+    map.closePopup();
+    await db.collection('reports').doc(id).delete();
+    showToast('投稿を削除しました。続けて投稿してください');
+    openSheet();
+  } catch(err){
+    console.error('削除エラー:', err);
+    showToast('削除に失敗しました。もう一度お試しください');
+  }
+}
 
 /* =========================================================
    報告シート
@@ -895,6 +960,36 @@ const ITEM_TYPES = [
   { cat:'海ごみ', label:'フロート', emoji:'🛟' },
   { cat:'ポイ捨て', label:'その他', emoji:'❔' },
 ];
+
+function renderFilterBar(){
+  const bar = document.getElementById('filterBar');
+  if (!bar) return;
+  bar.innerHTML = '';
+
+  const allChip = document.createElement('button');
+  allChip.type = 'button';
+  allChip.className = 'filter-chip active';
+  allChip.textContent = 'すべて';
+  allChip.onclick = () => setActiveFilter('all', allChip);
+  bar.appendChild(allChip);
+
+  ITEM_TYPES.forEach(item => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'filter-chip';
+    chip.innerHTML = `<span class="fe">${item.emoji}</span><span class="fl">${item.label}</span>`;
+    chip.onclick = () => setActiveFilter(item.label, chip);
+    bar.appendChild(chip);
+  });
+}
+
+function setActiveFilter(filter, chipEl){
+  activeFilter = filter;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  chipEl.classList.add('active');
+  renderMarkers();
+}
+renderFilterBar();
 
 let selectedCategory = null;
 let selectedItem = null;
@@ -1026,6 +1121,7 @@ async function submitReport(){
       confidence: '未確認',
       confirmCount: 0,
       reportedBy: currentUser.uid,
+      reporterName: profileNickname || '無記名',
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       status: 'active'
     });
