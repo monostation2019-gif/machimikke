@@ -193,6 +193,32 @@ nav.bottom button.active{color:var(--blue); font-weight:700;}
   font-family:"Noto Sans JP", sans-serif;
 }
 
+/* ---------- Detail Sheet（ピンをタップした時にボトムから出るポップアップ） ---------- */
+.detail-header{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:6px;}
+.detail-title{display:flex; align-items:center; gap:8px; font-size:18px; font-weight:700; color:var(--ink); min-width:0;}
+.detail-title .em{font-size:20px; flex:none;}
+.detail-title .lb{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.detail-close{
+  flex:none; width:32px; height:32px; border-radius:50%; border:none;
+  background:#F3F6FC; color:var(--muted); font-size:15px;
+  display:flex; align-items:center; justify-content:center; margin-top:-2px;
+}
+.detail-meta{font-size:12.5px; color:var(--muted); margin:0 0 3px;}
+.detail-row{display:flex; align-items:center; gap:10px; margin:12px 0;}
+.detail-avatar{
+  width:34px; height:34px; border-radius:50%; background:#EFF2F8; flex:none;
+  display:flex; align-items:center; justify-content:center; font-size:16px;
+  background-size:cover; background-position:center;
+}
+.detail-reporter{font-size:13px; color:var(--ink); font-weight:700;}
+.detail-comment-block{
+  background:#F3F6FC; border-radius:12px; padding:10px 12px; margin-bottom:14px;
+}
+.detail-comment-block label{display:block; font-size:11px; color:var(--muted); font-weight:700; margin-bottom:3px;}
+.detail-comment-block p{margin:0; font-size:13.5px; color:var(--ink); line-height:1.5; white-space:pre-wrap;}
+.detail-photo{width:100%; border-radius:14px; margin-bottom:14px; display:block;}
+.detail-nav-btn{display:flex; align-items:center; justify-content:center; gap:6px;}
+
 /* ---------- Report Sheet ---------- */
 .sheet-backdrop{
   position:fixed; inset:0; background:rgba(20,30,55,0.4); z-index:50;
@@ -242,6 +268,10 @@ nav.bottom button.active{color:var(--blue); font-weight:700;}
   border:none; background:rgba(31,41,55,0.72); color:#fff; border-radius:999px;
   padding:6px 12px; font-size:11.5px; font-weight:700; display:none; align-items:center; gap:4px;
 }
+
+.comment-row{margin-bottom:16px;}
+.comment-row label{font-size:12.5px; color:var(--muted); display:block; margin-bottom:6px;}
+textarea.text-input{resize:none; font-family:"Noto Sans JP", sans-serif; line-height:1.5;}
 
 .btn-primary{
   width:100%; padding:15px; border:none; border-radius:14px; background:var(--blue); color:#fff;
@@ -471,6 +501,11 @@ nav.bottom button.active{color:var(--blue); font-weight:700;}
       </div>
     </div>
 
+    <div class="comment-row">
+      <label>ひとこと（任意）</label>
+      <textarea class="text-input" id="commentInput" rows="2" maxlength="60" placeholder="気づいたことを一言メモ（例：大量に散乱していました）"></textarea>
+    </div>
+
     <button class="btn-primary" id="submitBtn" onclick="submitReport()" disabled>投稿する</button>
     <button class="btn-ghost" onclick="closeSheet()">キャンセル</button>
   </div>
@@ -503,6 +538,34 @@ nav.bottom button.active{color:var(--blue); font-weight:700;}
 
     <button class="btn-primary" id="profileSaveBtn" onclick="saveProfile()">保存する</button>
     <button class="btn-ghost" onclick="closeProfileSheet()">キャンセル</button>
+  </div>
+</div>
+
+<!-- ゴミ詳細シート（ピンをタップすると下から表示） -->
+<div class="sheet-backdrop" id="detailSheetBackdrop" onclick="if(event.target===this) closeDetailSheet()">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="detail-header">
+      <div class="detail-title"><span class="em" id="detailEmoji">🗑️</span><span class="lb" id="detailItemType">ゴミ</span></div>
+      <button class="detail-close" onclick="closeDetailSheet()">✕</button>
+    </div>
+    <p class="detail-meta" id="detailDate"></p>
+    <p class="detail-meta" id="detailArea"></p>
+
+    <div class="detail-row">
+      <div class="detail-avatar" id="detailAvatar">👤</div>
+      <div class="detail-reporter" id="detailReporter">投稿者：無記名</div>
+    </div>
+
+    <div class="detail-comment-block" id="detailCommentBlock" style="display:none;">
+      <label>ひとこと</label>
+      <p id="detailComment"></p>
+    </div>
+
+    <img class="detail-photo" id="detailPhoto" style="display:none;">
+
+    <div id="detailRedoWrap"></div>
+    <button class="btn-primary detail-nav-btn" id="detailNavBtn" onclick="navigateToDetail()">🧭 ここへナビ</button>
   </div>
 </div>
 
@@ -924,24 +987,64 @@ function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-function renderPopup(d, id){
-  const conf = CONFIDENCE_LABEL[d.confidence] || CONFIDENCE_LABEL['未確認'];
+/* ---- ゴミ詳細ボトムシート ---- */
+let detailLocation = null;
+
+function openDetailSheet(d, id){
+  const itemDef = findItemType(d.itemType);
+  const emoji = d.emoji || (itemDef && itemDef.emoji) || '🗑️';
+  document.getElementById('detailEmoji').textContent = emoji;
+  document.getElementById('detailItemType').textContent = d.itemType || 'ゴミ';
+
   const date = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString('ja-JP') : '';
-  const reporterName = escapeHtml(d.reporterName || '無記名');
-  const photo = (d.photos && d.photos[0])
-    ? `<img src="${d.photos[0]}"><div class="reporter">投稿者：${reporterName}</div>`
-    : `<div class="reporter">投稿者：${reporterName}</div>`;
+  document.getElementById('detailDate').textContent = date;
+  document.getElementById('detailArea').textContent = (d.area && d.area.town) ? d.area.town : '';
+
+  const avatarEl = document.getElementById('detailAvatar');
+  if (d.reporterAvatarType === 'photo' && d.reporterAvatarPhotoUrl){
+    avatarEl.style.backgroundImage = `url(${d.reporterAvatarPhotoUrl})`;
+    avatarEl.textContent = '';
+  } else {
+    avatarEl.style.backgroundImage = '';
+    avatarEl.textContent = d.reporterAvatarEmoji || '👤';
+  }
+  document.getElementById('detailReporter').textContent = '投稿者：' + (d.reporterName || '無記名');
+
+  const commentBlock = document.getElementById('detailCommentBlock');
+  if (d.comment){
+    document.getElementById('detailComment').textContent = d.comment;
+    commentBlock.style.display = '';
+  } else {
+    commentBlock.style.display = 'none';
+  }
+
+  const photoEl = document.getElementById('detailPhoto');
+  if (d.photos && d.photos[0]){
+    photoEl.src = d.photos[0];
+    photoEl.style.display = '';
+  } else {
+    photoEl.style.display = 'none';
+  }
+
   const isOwner = !!(currentUser && d.reportedBy === currentUser.uid);
-  const redoBtn = isOwner
+  const redoWrap = document.getElementById('detailRedoWrap');
+  redoWrap.innerHTML = isOwner
     ? `<button class="popup-redo-btn" onclick="redoReport('${id}')">↺ 削除してやり直す</button>`
     : '';
-  return `<div class="pin-popup">
-    <span class="badge ${conf.cls}">${conf.txt}</span>
-    <h4>${d.itemType || 'ゴミ'}</h4>
-    <div class="meta">${date}${d.area && d.area.town ? ' ・ ' + d.area.town : ''}</div>
-    ${photo}
-    ${redoBtn}
-  </div>`;
+
+  detailLocation = (d.location) ? { lat: d.location.latitude, lng: d.location.longitude } : null;
+
+  document.getElementById('detailSheetBackdrop').classList.add('open');
+}
+
+function closeDetailSheet(){
+  document.getElementById('detailSheetBackdrop').classList.remove('open');
+}
+
+function navigateToDetail(){
+  if (!detailLocation) return;
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${detailLocation.lat},${detailLocation.lng}&travelmode=walking`;
+  window.open(url, '_blank');
 }
 
 let allReports = [];
@@ -956,7 +1059,7 @@ function renderMarkers(){
     const lat = d.location.latitude, lng = d.location.longitude;
     heatPoints.push([lat, lng, 0.6]);
     const marker = L.marker([lat,lng], { icon: buildDivIcon(d) });
-    marker.bindPopup(renderPopup(d, id));
+    marker.on('click', () => openDetailSheet(d, id));
     markersLayer.addLayer(marker);
   });
   if (heatLayer) map.removeLayer(heatLayer);
@@ -981,7 +1084,7 @@ async function redoReport(id){
   const ok = confirm('この投稿を削除して、もう一度投稿し直しますか？');
   if (!ok) return;
   try {
-    map.closePopup();
+    closeDetailSheet();
     await db.collection('reports').doc(id).delete();
     showToast('投稿を削除しました。続けて投稿してください');
     openSheet();
@@ -1282,6 +1385,7 @@ function updateSubmitState(){
 function openSheet(){
   selectedCategory = null; selectedItem = null; selectedLocation = null; selectedEmoji = null;
   resetPhoto();
+  document.getElementById('commentInput').value = '';
   renderIconGrid();
   updateSubmitState();
   document.getElementById('sheetBackdrop').classList.add('open');
@@ -1322,6 +1426,7 @@ async function submitReport(){
     }
 
     btn.textContent = '投稿中…';
+    const comment = document.getElementById('commentInput').value.trim();
     await db.collection('reports').add({
       category: selectedCategory,
       itemType: selectedItem,
@@ -1329,6 +1434,7 @@ async function submitReport(){
       location: new firebase.firestore.GeoPoint(selectedLocation.lat, selectedLocation.lng),
       area: area,
       photos: photoUrl ? [photoUrl] : [],
+      comment: comment || '',
       confidence: '未確認',
       confirmCount: 0,
       reportedBy: currentUser.uid,
