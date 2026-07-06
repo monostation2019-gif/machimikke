@@ -68,6 +68,37 @@ input,textarea,select{font-family:inherit;}
 }
 .mode-tab.active{background:var(--blue); border-color:var(--blue); color:#fff;}
 
+.leaflet-control-layers{border-radius:12px !important; overflow:hidden; font-family:"Noto Sans JP", sans-serif;}
+.admin-locate-btn, .admin-list-btn{
+  position:absolute; z-index:20; width:40px; height:40px; background:#fff; border:none; border-radius:10px;
+  box-shadow:0 1px 6px rgba(0,0,0,0.3); font-size:19px; color:var(--blue);
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
+.admin-locate-btn{right:10px; bottom:14px;}
+.admin-list-btn{right:10px; bottom:62px; font-size:17px;}
+
+/* ---------- タップ後の「何を登録するか」選択シート ---------- */
+.type-choice-sheet{
+  position:absolute; left:14px; right:14px; bottom:14px; z-index:22;
+  background:var(--card); border-radius:16px; padding:14px 16px calc(14px + var(--safe-bottom));
+  box-shadow:0 8px 24px rgba(20,30,60,0.22); animation:slideUp .25s ease;
+}
+.type-choice-sheet.hidden{display:none;}
+.tcs-label{margin:0 0 10px; font-size:13px; font-weight:700; color:var(--ink); text-align:center;}
+.tcs-actions{display:flex; gap:10px; margin-bottom:8px;}
+.tcs-btn{
+  flex:1; border:none; border-radius:12px; padding:14px 8px; font-size:13px; font-weight:700;
+  line-height:1.6; color:#fff;
+}
+.tcs-gomi{background:linear-gradient(135deg, var(--red), #c9463a);}
+.tcs-stamp{background:linear-gradient(135deg, var(--teal), #2c8879);}
+.tcs-cancel{width:100%; border:1px solid var(--line); background:none; border-radius:10px; padding:9px; font-size:12.5px; color:var(--muted); font-weight:700;}
+@keyframes slideUp{from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:translateY(0);}}
+
+.list-panel-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+.list-panel-header h2{font-size:16px; margin:0;}
+.list-panel-header button{border:none; background:none; color:var(--muted); font-size:18px;}
+
 #mapArea{position:relative; flex:1; min-height:0;}
 #adminMap{position:absolute; inset:0;}
 .map-hint{
@@ -147,18 +178,28 @@ input,textarea,select{font-family:inherit;}
 <div id="adminApp" class="hidden">
   <div class="admin-header">
     <h1>まちみっけ 管理者ページ</h1>
-    <button onclick="logout()">ログアウト</button>
-  </div>
-
-  <div class="mode-tabs">
-    <button type="button" class="mode-tab active" data-mode="gomi" onclick="setMode('gomi', this)">🗑️ ゴミを追加</button>
-    <button type="button" class="mode-tab" data-mode="stamp" onclick="setMode('stamp', this)">🏅 スタンプを追加</button>
-    <button type="button" class="mode-tab" data-mode="list" onclick="setMode('list', this)">📋 一覧・削除</button>
+    <div style="display:flex; gap:14px;">
+      <button onclick="openListPanel()">📋 一覧</button>
+      <button onclick="logout()">ログアウト</button>
+    </div>
   </div>
 
   <div id="mapArea">
     <div id="adminMap"></div>
-    <div class="map-hint" id="mapHint">地図をタップしてピンを置くと、登録フォームが開きます</div>
+    <div class="map-hint" id="mapHint">地図をタップしてピンを置いてください</div>
+
+    <button type="button" class="admin-list-btn" onclick="openListPanel()">📋</button>
+    <button type="button" class="admin-locate-btn" onclick="goToMyLocationAdmin(true)">⌖</button>
+
+    <!-- タップ直後：ゴミ／スタンプの選択シート -->
+    <div class="type-choice-sheet hidden" id="typeChoiceSheet">
+      <p class="tcs-label">ここに何を登録しますか？</p>
+      <div class="tcs-actions">
+        <button type="button" class="tcs-btn tcs-gomi" onclick="chooseType('gomi')">🗑️<br>ゴミ投稿</button>
+        <button type="button" class="tcs-btn tcs-stamp" onclick="chooseType('stamp')">🏅<br>スタンプ投稿</button>
+      </div>
+      <button type="button" class="tcs-cancel" onclick="cancelPlacement()">キャンセル</button>
+    </div>
 
     <!-- ゴミ追加フォーム -->
     <div class="form-panel-gomi form-panel hidden" id="formPanelGomi">
@@ -171,7 +212,7 @@ input,textarea,select{font-family:inherit;}
         <textarea id="gomiComment" placeholder="現地の様子など"></textarea>
       </div>
       <div class="form-row">
-        <label>写真（任意）</label>
+        <label>写真（任意・カメラ／アルバムから選択）</label>
         <input type="file" accept="image/*" id="gomiPhotoInput" onchange="onGomiPhotoSelected(event)">
         <img class="form-photo-preview" id="gomiPhotoPreview">
       </div>
@@ -196,7 +237,7 @@ input,textarea,select{font-family:inherit;}
         <input type="number" id="stampRadius" value="30" min="5" max="200">
       </div>
       <div class="form-row">
-        <label>紹介写真（任意）</label>
+        <label>紹介写真（任意・カメラ／アルバムから選択）</label>
         <input type="file" accept="image/*" id="stampPhotoInput" onchange="onStampPhotoSelected(event)">
         <img class="form-photo-preview" id="stampPhotoPreview">
       </div>
@@ -209,6 +250,10 @@ input,textarea,select{font-family:inherit;}
 
   <!-- 一覧パネル -->
   <div id="listPanel" class="hidden">
+    <div class="list-panel-header">
+      <h2>投稿一覧・削除</h2>
+      <button onclick="closeListPanel()">✕</button>
+    </div>
     <div class="list-tabs">
       <button type="button" class="list-tab active" data-list="gomi" onclick="setListTab('gomi', this)">ゴミ投稿</button>
       <button type="button" class="list-tab" data-list="stamp" onclick="setListTab('stamp', this)">スタンプ地点</button>
@@ -319,7 +364,6 @@ gomiSelect.innerHTML = ITEM_TYPES.map(it => `<option value="${it.label}">${it.em
 ========================================================= */
 let adminMap = null;
 let clickedLatLng = null;
-let currentMode = 'gomi';
 let gomiMarkersLayer = null;
 let stampMarkersLayer = null;
 
@@ -328,47 +372,86 @@ const stampIconAdmin = L.icon({
   iconUrl: STAMP_ICON_DATA_URL, iconSize:[40,40], iconAnchor:[20,20], popupAnchor:[0,-18]
 });
 
+let tempMarker = null;
+let chosenType = null;
+let adminMyLocationMarker = null;
+
 function initAdminMap(){
   adminMap = L.map('adminMap', { zoomControl:true }).setView([34.4859, 136.7093], 14);
-  L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
+
+  const stdLayer = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
     attribution: '地図: 国土地理院', maxZoom: 18
   }).addTo(adminMap);
+  const photoLayer = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', {
+    attribution: '写真: 国土地理院', maxZoom: 18
+  });
+  L.control.layers({ '通常地図': stdLayer, '写真（衛星）': photoLayer }, null, { position:'topright' }).addTo(adminMap);
 
   gomiMarkersLayer = L.layerGroup().addTo(adminMap);
   stampMarkersLayer = L.layerGroup().addTo(adminMap);
 
+  // ---- 現在地の自動取得（index.htmlと同じ仕組み） ----
+  adminMap.on('locationfound', (e) => {
+    if (adminMyLocationMarker) adminMap.removeLayer(adminMyLocationMarker);
+    adminMyLocationMarker = L.circleMarker(e.latlng, {
+      radius:8, color:'#fff', weight:3, fillColor:'#2F6FED', fillOpacity:1
+    }).addTo(adminMap);
+  });
+  adminMap.on('locationerror', (e) => console.warn('現在地取得エラー:', e.message));
+  goToMyLocationAdmin(false);
+
+  // ---- 地図タップ→仮ピンを置いて「ゴミ／スタンプ」を選択させる ----
   adminMap.on('click', (e) => {
-    if (currentMode === 'list') return;
+    if (!document.getElementById('listPanel').classList.contains('hidden')) return;
+    closeFormPanel();
     clickedLatLng = e.latlng;
-    openFormPanel();
+    if (tempMarker) adminMap.removeLayer(tempMarker);
+    tempMarker = L.marker(clickedLatLng, { draggable:true }).addTo(adminMap);
+    tempMarker.on('dragend', () => { clickedLatLng = tempMarker.getLatLng(); });
+    document.getElementById('typeChoiceSheet').classList.remove('hidden');
   });
 
   watchGomiReports();
   watchStampSpots();
 }
 
-function setMode(mode, btn){
-  currentMode = mode;
-  document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  closeFormPanel();
-  document.getElementById('listPanel').classList.toggle('hidden', mode !== 'list');
-  document.getElementById('mapHint').style.display = (mode === 'list') ? 'none' : '';
-  document.getElementById('mapHint').textContent = mode === 'stamp'
-    ? '地図をタップしてスタンプ地点を置いてください'
-    : '地図をタップしてピンを置くと、登録フォームが開きます';
-  if (mode === 'list') renderList();
+function goToMyLocationAdmin(showFeedback){
+  if (showFeedback) showToast('現在地を取得中…');
+  adminMap.locate({ setView:true, maxZoom:16, enableHighAccuracy:true, timeout:8000 });
 }
 
-function openFormPanel(){
-  document.getElementById('formPanelGomi').classList.toggle('hidden', currentMode !== 'gomi');
-  document.getElementById('formPanelStamp').classList.toggle('hidden', currentMode !== 'stamp');
+function chooseType(type){
+  chosenType = type;
+  document.getElementById('typeChoiceSheet').classList.add('hidden');
+  if (tempMarker && type === 'stamp') tempMarker.setIcon(stampIconAdmin);
+  document.getElementById('formPanelGomi').classList.toggle('hidden', type !== 'gomi');
+  document.getElementById('formPanelStamp').classList.toggle('hidden', type !== 'stamp');
+}
+
+function cancelPlacement(){
+  document.getElementById('typeChoiceSheet').classList.add('hidden');
+  if (tempMarker){ adminMap.removeLayer(tempMarker); tempMarker = null; }
+  clickedLatLng = null;
+  chosenType = null;
 }
 
 function closeFormPanel(){
+  document.getElementById('typeChoiceSheet').classList.add('hidden');
   document.getElementById('formPanelGomi').classList.add('hidden');
   document.getElementById('formPanelStamp').classList.add('hidden');
+  if (tempMarker){ adminMap.removeLayer(tempMarker); tempMarker = null; }
   clickedLatLng = null;
+  chosenType = null;
+}
+
+function openListPanel(){
+  cancelPlacement();
+  document.getElementById('listPanel').classList.remove('hidden');
+  renderList();
+}
+
+function closeListPanel(){
+  document.getElementById('listPanel').classList.add('hidden');
 }
 
 /* =========================================================
@@ -539,7 +622,7 @@ function watchGomiReports(){
       marker.bindPopup(`${r.emoji || '🗑️'} ${r.itemType || ''}`);
       marker.addTo(gomiMarkersLayer);
     });
-    if (currentMode === 'list' && currentListTab === 'gomi') renderList();
+    if (!document.getElementById('listPanel').classList.contains('hidden') && currentListTab === 'gomi') renderList();
   });
 }
 
@@ -552,7 +635,7 @@ function watchStampSpots(){
       marker.bindPopup(`<b>${s.title}</b><br>半径${s.radius}m`);
       marker.addTo(stampMarkersLayer);
     });
-    if (currentMode === 'list' && currentListTab === 'stamp') renderList();
+    if (!document.getElementById('listPanel').classList.contains('hidden') && currentListTab === 'stamp') renderList();
   });
 }
 

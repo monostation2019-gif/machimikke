@@ -1889,8 +1889,9 @@ function computeRanking(tab){
 
   if (tab === 'user'){
     // ユーザー別ランキングは「発見」と「保護（現地確認）」の両方を今月分だけ合算する
+    // ※ 管理者ページからの投稿（reportedBy: 'admin'）はユーザーではないため集計から除外する
     allReports.forEach(({ d }) => {
-      if (isThisMonth(d) && d.reportedBy){
+      if (isThisMonth(d) && d.reportedBy && d.reportedBy !== 'admin'){
         const key = d.reportedBy;
         if (!counts.has(key)){
           counts.set(key, { uid:key, label:'無記名', count:0, foundCount:0, protectCount:0, avatarType:'emoji', avatarEmoji:'👤', avatarPhotoUrl:null });
