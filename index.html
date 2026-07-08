@@ -76,6 +76,18 @@ header{
   display:flex; align-items:center; justify-content:center; font-size:16px;
 }
 
+/* ---------- ホーム日時・天気バー(ヘッダー直下、フィルターバーの上) ---------- */
+#homeStatusBar{
+  position:relative; z-index:20; flex:none;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:7px 16px; background:var(--card);
+  border-bottom:1px solid var(--line);
+  font-size:12px; color:var(--muted); font-weight:700;
+}
+#homeStatusBar .home-datetime{color:var(--ink);}
+#homeStatusBar .home-weather{display:flex; align-items:center; gap:4px;}
+#homeStatusBar .home-weather .wemoji{font-size:15px;}
+
 /* ---------- ゴミ種類フィルターバー(ヘッダー直下) ---------- */
 #filterBar{
   position:relative; z-index:20; flex:none;
@@ -278,6 +290,24 @@ nav.bottom button.active{color:var(--blue); font-weight:700;}
 .detail-status-badge{
   display:inline-block; font-size:11.5px; font-weight:700; color:#1E9E6B;
   background:#EAFBF4; border-radius:999px; padding:4px 10px; margin:2px 0 6px;
+}
+.detail-confirm-count{
+  display:inline-block; font-size:11.5px; font-weight:700; color:#B8790F;
+  background:#FFF3DA; border-radius:999px; padding:4px 10px; margin:2px 6px 6px 0;
+}
+/* 「現地で確認」「回収する（保護）」を横並びにして行高を変えない */
+.detail-actions-row{
+  display:flex; gap:8px; margin-top:10px;
+}
+.detail-actions-row .popup-confirm-btn,
+.detail-actions-row .popup-protect-btn{
+  flex:1 1 0; width:auto; margin-top:0; padding:11px 4px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.popup-confirm-btn{
+  border:none; border-radius:10px;
+  background:var(--amber); color:#fff; font-weight:700; font-size:13px;
+  font-family:"Noto Sans JP", sans-serif;
 }
 
 /* ---------- Detail Sheet（ピンをタップした時にボトムから出るポップアップ） ---------- */
@@ -618,6 +648,11 @@ textarea.text-input{resize:none; font-family:"Noto Sans JP", sans-serif; line-he
 
 <div class="stamp-popup" id="stampPopup"></div>
 
+<div id="homeStatusBar">
+  <span class="home-datetime" id="homeDateTime">--</span>
+  <span class="home-weather" id="homeWeather">天気取得中…</span>
+</div>
+
 <div id="filterBar"></div>
 
 <div id="main-content">
@@ -875,6 +910,7 @@ textarea.text-input{resize:none; font-family:"Noto Sans JP", sans-serif; line-he
     <p class="detail-meta" id="detailDate"></p>
     <p class="detail-meta" id="detailArea"></p>
     <span class="detail-status-badge" id="detailStatus" style="display:none;"></span>
+    <span class="detail-confirm-count" id="detailConfirmCount" style="display:none;"></span>
 
     <div class="detail-row">
       <div class="detail-avatar" id="detailAvatar">👤</div>
@@ -1989,6 +2025,7 @@ map.on('locationfound', (e) => {
   }
 
   checkStampProximity(e.latlng, e.accuracy);
+  fetchHomeWeatherOnce(e.latlng.lat, e.latlng.lng);
 });
 
 map.on('locationerror', (e) => {
@@ -2101,6 +2138,15 @@ function openDetailSheet(d, id){
     statusEl.style.display = 'none';
   }
 
+  const confirmCountEl = document.getElementById('detailConfirmCount');
+  const confirmCount = d.confirmCount || 0;
+  if (confirmCount > 0){
+    confirmCountEl.textContent = `👀 現地確認：${confirmCount}回`;
+    confirmCountEl.style.display = '';
+  } else {
+    confirmCountEl.style.display = 'none';
+  }
+
   const commentBlock = document.getElementById('detailCommentBlock');
   if (d.comment){
     document.getElementById('detailComment').textContent = d.comment;
@@ -2125,7 +2171,10 @@ function openDetailSheet(d, id){
     actionsHtml += `<button class="popup-redo-btn" onclick="redoReport('${id}')">↺ 削除してやり直す</button>`;
   }
   if (!isProtected && currentUser && !isOwner){
-    actionsHtml += `<button class="popup-protect-btn" onclick="protectReport('${id}')">✅ 現地で確認済み（保護する）</button>`;
+    actionsHtml += `<div class="detail-actions-row">
+      <button class="popup-confirm-btn" onclick="confirmReport('${id}')">👀 現地で確認</button>
+      <button class="popup-protect-btn" onclick="protectReport('${id}')">✅ 回収する（保護）</button>
+    </div>`;
   }
   actionsWrap.innerHTML = actionsHtml;
 
@@ -2196,6 +2245,37 @@ async function redoReport(id){
 }
 
 /**
+ * 現地でゴミがまだある事を確認した時に押すボタン。
+ * ピンは削除・保護されず、確認回数（confirmCount）だけが加算される。
+ * 保護（回収）とは独立した操作。
+ */
+async function confirmReport(id){
+  if (!currentUser){ showToast('ログインすると現地確認ができます'); return; }
+  const target = allReports.find(r => r.id === id);
+  if (!target) return;
+  if (target.d.reportedBy === currentUser.uid){
+    showToast('自分の投稿は確認できません');
+    return;
+  }
+  try {
+    await db.collection('reports').doc(id).update({
+      confirmCount: firebase.firestore.FieldValue.increment(1)
+    });
+    // サーバー往復を待たずに画面上の確認回数をその場で更新
+    target.d.confirmCount = (target.d.confirmCount || 0) + 1;
+    const confirmCountEl = document.getElementById('detailConfirmCount');
+    if (confirmCountEl){
+      confirmCountEl.textContent = `👀 現地確認：${target.d.confirmCount}回`;
+      confirmCountEl.style.display = '';
+    }
+    showToast('確認ありがとうございます！');
+  } catch(err){
+    console.error('確認処理エラー:', err);
+    showToast('確認処理に失敗しました。もう一度お試しください');
+  }
+}
+
+/**
  * 現地で確認して、ゴミが無くなっていた場合に「保護済み」にする
  * 保護済みになったピンはホーム地図・ランキングの集計対象から外れ、
  * 確認した本人にポイントが加算される（自分自身の投稿は保護できない）
@@ -2207,7 +2287,7 @@ async function protectReport(id){
     showToast('自分の投稿は保護できません。他の人が確認するとポイントが入ります');
     return;
   }
-  const ok = confirm('現地で確認して、このゴミは無くなっていましたか？\n保護済みにすると、この投稿はホーム画面の地図から消えます。');
+  const ok = confirm('このゴミを回収しましたか？\n回収済みにすると、この投稿は地図・一覧から消えます。');
   if (!ok) return;
   try {
     await db.collection('reports').doc(id).update({
@@ -3052,6 +3132,7 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     document.getElementById('view-ranking').classList.toggle('hidden', target !== 'ranking');
     document.getElementById('view-timeline').classList.toggle('hidden', target !== 'timeline');
     document.getElementById('filterBar').style.display = (target === 'map') ? '' : 'none';
+    document.getElementById('homeStatusBar').style.display = (target === 'map') ? '' : 'none';
     if (target === 'ranking') renderRanking();
     if (target === 'timeline') renderTimeline();
     if (target === 'map') goToMyLocation(false); else stopMyLocationWatch();
@@ -3060,6 +3141,64 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     if (target === 'mypage') renderStampRallyUI();
   });
 });
+
+/* =========================================================
+   ホーム画面：日時・天気の自動表示（ヘッダー下、フィルターバー上）
+========================================================= */
+function updateHomeDateTime(){
+  const el = document.getElementById('homeDateTime');
+  if (!el) return;
+  const now = new Date();
+  const week = ['日','月','火','水','木','金','土'][now.getDay()];
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mm = String(now.getMinutes()).padStart(2,'0');
+  el.textContent = `${now.getMonth() + 1}月${now.getDate()}日(${week}) ${hh}:${mm}`;
+}
+updateHomeDateTime();
+setInterval(updateHomeDateTime, 30000);
+
+// 天気コード(Open-Meteoの気象コード)を絵文字とラベルに変換
+function weatherCodeToInfo(code){
+  const map = {
+    0: ['☀️','快晴'], 1: ['🌤️','晴れ'], 2: ['⛅','晴れ時々くもり'], 3: ['☁️','くもり'],
+    45: ['🌫️','霧'], 48: ['🌫️','霧'],
+    51: ['🌦️','小雨'], 53: ['🌦️','小雨'], 55: ['🌧️','雨'],
+    61: ['🌧️','雨'], 63: ['🌧️','雨'], 65: ['🌧️','大雨'],
+    71: ['🌨️','雪'], 73: ['🌨️','雪'], 75: ['❄️','大雪'],
+    80: ['🌦️','にわか雨'], 81: ['🌧️','にわか雨'], 82: ['⛈️','激しい雨'],
+    95: ['⛈️','雷雨'], 96: ['⛈️','雷雨'], 99: ['⛈️','雷雨']
+  };
+  return map[code] || ['🌡️', '---'];
+}
+
+let homeWeatherFetched = false;
+async function fetchHomeWeatherOnce(lat, lng){
+  // GPSの位置更新は何度も呼ばれるが、天気の取得は1回で十分なので二重取得を防ぐ
+  if (homeWeatherFetched) return;
+  homeWeatherFetched = true;
+  await fetchHomeWeather(lat, lng);
+}
+async function fetchHomeWeather(lat, lng){
+  const el = document.getElementById('homeWeather');
+  if (!el) return;
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=Asia%2FTokyo`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const cw = data.current_weather;
+    if (!cw) throw new Error('current_weatherが取得できませんでした');
+    const [emoji, label] = weatherCodeToInfo(cw.weathercode);
+    el.innerHTML = `<span class="wemoji">${emoji}</span>${Math.round(cw.temperature)}℃ ${label}`;
+  } catch (err) {
+    console.warn('天気取得失敗:', err);
+    el.textContent = '天気情報を取得できませんでした';
+  }
+}
+// GPS取得に失敗・時間がかかる端末でも「取得中…」のまま固まらないよう、
+// 8秒経っても現在地が取れなければ伊勢市付近の座標でフォールバック取得する
+setTimeout(() => {
+  if (!homeWeatherFetched) fetchHomeWeatherOnce(34.4859, 136.7095);
+}, 8000);
 
 function showToast(msg){
   const t = document.getElementById('toast');
