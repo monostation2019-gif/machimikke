@@ -244,15 +244,14 @@ nav.bottom button.active{color:var(--blue); font-weight:700;}
 /* ---------- 上に戻るボタン ---------- */
 .scroll-top-btn{
   position:absolute; right:16px; bottom:20px; z-index:25;
-  width:44px; height:44px; border-radius:50%; border:none;
-  background:var(--card); color:var(--blue); font-size:19px;
-  box-shadow:0 6px 16px rgba(20,30,60,0.22);
+  width:46px; height:46px; border-radius:50%; border:none;
+  background:var(--ink); color:#fff; font-size:18px;
+  box-shadow:0 4px 14px rgba(20,30,60,0.35);
   display:flex; align-items:center; justify-content:center;
-  opacity:0; transform:translateY(10px) scale(0.9); pointer-events:none;
+  opacity:0; transform:translateY(10px); pointer-events:none;
   transition:opacity .2s ease, transform .2s ease;
 }
-.scroll-top-btn.show{opacity:1; transform:translateY(0) scale(1); pointer-events:auto;}
-.scroll-top-btn:active{transform:scale(0.92);}
+.scroll-top-btn.show{opacity:1; transform:translateY(0); pointer-events:auto;}
 .view.hidden{display:none;}
 .view-header{padding:16px 18px 4px;}
 .view-header h2{margin:0 0 2px; font-size:20px;}
@@ -740,7 +739,7 @@ textarea.text-input{resize:none; font-family:"Noto Sans JP", sans-serif; line-he
     <div class="stamp-book-grid" id="stampBookGrid"></div>
   </div>
 
-  <button type="button" class="scroll-top-btn" id="mypageScrollTopBtn" onclick="scrollViewToTop('view-mypage')" title="上に戻る">↑</button>
+  <button type="button" class="scroll-top-btn" id="mypageScrollTopBtn" onclick="scrollViewToTop('view-mypage')" aria-label="上に戻る">▲</button>
 </div>
 
 <!-- ランキング ビュー -->
@@ -757,7 +756,7 @@ textarea.text-input{resize:none; font-family:"Noto Sans JP", sans-serif; line-he
     <button type="button" class="ranking-more-btn" id="rankingMoreBtn" onclick="expandRanking()" style="display:none;">もっと見る</button>
   </div>
 
-  <button type="button" class="scroll-top-btn" id="rankingScrollTopBtn" onclick="scrollViewToTop('view-ranking')" title="上に戻る">↑</button>
+  <button type="button" class="scroll-top-btn" id="rankingScrollTopBtn" onclick="scrollViewToTop('view-ranking')" aria-label="上に戻る">▲</button>
 </div>
 
 <!-- タイムライン ビュー -->
