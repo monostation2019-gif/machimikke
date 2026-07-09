@@ -374,7 +374,7 @@ function renderNetStatusBadge(){
   if (!badge){
     badge = document.createElement('div');
     badge.id = 'netStatusBadge';
-    badge.style.cssText = 'position:fixed; top:8px; right:8px; z-index:9999; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; box-shadow:0 1px 4px rgba(0,0,0,0.25); pointer-events:none; transition:background .2s,color .2s;';
+    badge.style.cssText = 'position:fixed; top:8px; left:8px; z-index:9999; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; box-shadow:0 1px 4px rgba(0,0,0,0.25); pointer-events:none; transition:background .2s,color .2s;';
     document.body.appendChild(badge);
   }
   if (!navigator.onLine){
