@@ -374,7 +374,7 @@ function renderNetStatusBadge(){
   if (!badge){
     badge = document.createElement('div');
     badge.id = 'netStatusBadge';
-    badge.style.cssText = 'position:fixed; top:8px; right:8px; z-index:9999; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; box-shadow:0 1px 4px rgba(0,0,0,0.25); pointer-events:none; transition:background .2s,color .2s;';
+    badge.style.cssText = 'position:fixed; left:8px; bottom:calc(8px + var(--safe-bottom, 0px)); z-index:9999; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; box-shadow:0 1px 4px rgba(0,0,0,0.25); pointer-events:none; transition:background .2s,color .2s;';
     document.body.appendChild(badge);
   }
   if (!navigator.onLine){
@@ -1010,6 +1010,21 @@ function showToast(msg){
 ========================================================= */
 if (sessionStorage.getItem('mm_admin_authed') === '1'){
   enterAdmin();
+}
+
+/* =========================================================
+   PWA: Service Worker 登録（オフライン対応）
+   index.html側と同じ仕組みをadmin.htmlにも入れておく。
+   これが無いと、admin.htmlを直接ブックマーク等から開いた場合に
+   このページ自体がブラウザに保存されず、電波が無い時に
+   ページそのものが開けなくなってしまう。
+========================================================= */
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(err => {
+      console.warn('SW登録失敗:', err);
+    });
+  });
 }
 </script>
 </body>
