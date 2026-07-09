@@ -353,6 +353,50 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
+// ---- オフライン対応：電波が無くても登録操作を続けられるようにする ----
+// これを有効にすると、ゴミ・スタンプの登録内容（写真データ含む）はまず
+// 端末内（IndexedDB）に保存され、電波が戻ったタイミングでFirebase側が
+// 自動的にサーバーへ送信してくれる。人がやることは「いつも通り登録する」
+// だけでよく、送信タイミングを気にする必要はない。
+// synchronizeTabs:true にしておくと、同じブラウザで複数タブ/画面を
+// 開いていても矛盾なく動作する。
+db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+  console.warn('オフライン保存を有効にできませんでした:', err && err.code);
+  // 'failed-precondition' = 他のタブで既に有効化済み（実害なし）
+  // 'unimplemented'      = 古いブラウザで非対応（その場合は従来通りオンライン時のみ動作）
+});
+
+// ---- オフライン/オンライン状態の表示 ----
+// 画面の右上あたりに小さく現在の通信状態を表示し、未送信件数があれば併記する。
+let pendingWriteCount = 0;
+function renderNetStatusBadge(){
+  let badge = document.getElementById('netStatusBadge');
+  if (!badge){
+    badge = document.createElement('div');
+    badge.id = 'netStatusBadge';
+    badge.style.cssText = 'position:fixed; top:8px; right:8px; z-index:9999; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; box-shadow:0 1px 4px rgba(0,0,0,0.25); pointer-events:none; transition:background .2s,color .2s;';
+    document.body.appendChild(badge);
+  }
+  if (!navigator.onLine){
+    badge.textContent = pendingWriteCount > 0 ? `📴 オフライン（未送信 ${pendingWriteCount}件）` : '📴 オフライン';
+    badge.style.background = '#F2C94C';
+    badge.style.color = '#4A3800';
+  } else if (pendingWriteCount > 0){
+    badge.textContent = `🔄 送信中…（残り ${pendingWriteCount}件）`;
+    badge.style.background = '#2F6FED';
+    badge.style.color = '#fff';
+  } else {
+    badge.textContent = '🟢 オンライン';
+    badge.style.background = '#DCEFDD';
+    badge.style.color = '#1F6B2C';
+  }
+}
+window.addEventListener('online', renderNetStatusBadge);
+window.addEventListener('offline', renderNetStatusBadge);
+document.addEventListener('DOMContentLoaded', renderNetStatusBadge);
+// スクリプトの実行タイミング次第ではDOMContentLoadedが既に発火済みのことがあるため保険で即実行も行う
+renderNetStatusBadge();
+
 let adminReady = false;
 let anonAuthPromise = null;
 
@@ -403,7 +447,7 @@ let clickedLatLng = null;
 let gomiMarkersLayer = null;
 let stampMarkersLayer = null;
 
-const STAMP_ICON_DATA_URL = './img/stamp-icon.png';
+const STAMP_ICON_DATA_URL = '/img/stamp-icon.png';
 const stampIconAdmin = L.icon({
   iconUrl: STAMP_ICON_DATA_URL, iconSize:[40,40], iconAnchor:[20,20], popupAnchor:[0,-18]
 });
@@ -601,13 +645,18 @@ async function submitGomi(){
   const itemDef = ITEM_TYPES.find(it => it.label === label);
   const comment = document.getElementById('gomiComment').value.trim();
   const isEditing = !!editingGomiId;
+  const wasOffline = !navigator.onLine;
 
   try {
     if (anonAuthPromise) await anonAuthPromise;
 
     const area = {};
-    const townName = await reverseGeocodeTown(clickedLatLng.lat, clickedLatLng.lng);
-    if (townName) area.town = townName;
+    // オフライン中は住所検索（外部通信）を待たずスキップする。
+    // 電波が戻った後の編集時に町名を追加することもできるため、実害は小さい。
+    if (navigator.onLine){
+      const townName = await reverseGeocodeTown(clickedLatLng.lat, clickedLatLng.lng);
+      if (townName) area.town = townName;
+    }
     // ※学区（gakku）はindex.html側の対応表が大きいため、ここでは町名のみ自動判定します
 
     const photoToSave = gomiPhotoDataUrl
@@ -624,11 +673,16 @@ async function submitGomi(){
       comment: comment || ''
     };
 
+    // ここが重要：write操作（update/add）は awaitで完了を待たない。
+    // オフライン時、Firestoreはこのプロミスをサーバー到達までは解決しないため、
+    // awaitすると電波が戻るまで画面が固まったようになってしまう。
+    // 実際の保存（端末内キューへの登録）はこの呼び出しの時点で完了しているので、
+    // 画面の処理はここで先に進めてよい。送受信自体はSDKが裏側で自動的に行う。
+    let writePromise;
     if (isEditing){
-      await db.collection('reports').doc(editingGomiId).update(payload);
-      showToast('ゴミ投稿を更新しました');
+      writePromise = db.collection('reports').doc(editingGomiId).update(payload);
     } else {
-      await db.collection('reports').add({
+      writePromise = db.collection('reports').add({
         ...payload,
         confidence: '未確認',
         confirmCount: 0,
@@ -640,8 +694,17 @@ async function submitGomi(){
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         status: 'active'
       });
-      showToast('ゴミ投稿を登録しました');
     }
+    // 実際にサーバーへ届いた/失敗した時のログだけ裏側で記録しておく（画面はブロックしない）
+    writePromise
+      .then(() => console.log('[gomi] サーバーへの同期完了'))
+      .catch(err => console.error('[gomi] サーバー同期エラー:', err));
+
+    showToast(
+      wasOffline
+        ? '📴 オフラインのため端末に保存しました。電波が戻ったら自動で送信されます'
+        : (isEditing ? 'ゴミ投稿を更新しました' : 'ゴミ投稿を登録しました')
+    );
 
     closeFormPanel();
     document.getElementById('gomiComment').value = '';
@@ -664,6 +727,7 @@ async function submitStamp(){
   const radius = Number(document.getElementById('stampRadius').value) || 30;
   if (!title){ showToast('スポット名を入力してください'); return; }
   const isEditing = !!editingStampId;
+  const wasOffline = !navigator.onLine;
 
   try {
     if (anonAuthPromise) await anonAuthPromise;
@@ -679,17 +743,26 @@ async function submitStamp(){
       photo: photoToSave
     };
 
+    // ゴミ登録と同様、write完了は待たずに画面を先に進める（オフライン時に固まるのを防ぐ）
+    let writePromise;
     if (isEditing){
-      await db.collection('stampSpots').doc(editingStampId).update(payload);
-      showToast('スタンプ地点を更新しました');
+      writePromise = db.collection('stampSpots').doc(editingStampId).update(payload);
     } else {
-      await db.collection('stampSpots').add({
+      writePromise = db.collection('stampSpots').add({
         ...payload,
         createdBy: auth.currentUser ? auth.currentUser.uid : null,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
-      showToast('スタンプ地点を登録しました');
     }
+    writePromise
+      .then(() => console.log('[stamp] サーバーへの同期完了'))
+      .catch(err => console.error('[stamp] サーバー同期エラー:', err));
+
+    showToast(
+      wasOffline
+        ? '📴 オフラインのため端末に保存しました。電波が戻ったら自動で送信されます'
+        : (isEditing ? 'スタンプ地点を更新しました' : 'スタンプ地点を登録しました')
+    );
 
     closeFormPanel();
     document.getElementById('stampTitle').value = '';
@@ -711,31 +784,49 @@ let allGomiReports = [];
 let allStampSpots = [];
 let currentListTab = 'gomi';
 
+// 「ゴミ投稿」と「スタンプ地点」それぞれの未送信件数を別々に把握し、合算してバッジに出す
+let pendingGomiCount = 0;
+let pendingStampCount = 0;
+function updatePendingTotal(){
+  pendingWriteCount = pendingGomiCount + pendingStampCount;
+  renderNetStatusBadge();
+}
+
 function watchGomiReports(){
-  db.collection('reports').orderBy('createdAt','desc').limit(300).onSnapshot(snap => {
-    allGomiReports = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-    gomiMarkersLayer.clearLayers();
-    allGomiReports.forEach(r => {
-      if (!r.location) return;
-      const marker = L.marker([r.location.latitude, r.location.longitude]);
-      marker.bindPopup(`<div class="popup-jump" onclick="editGomi('${r.id}')">${r.emoji || '🗑️'} ${escapeHtml(r.itemType || '')}<div class="pj-link">タップで編集・打ち直し →</div></div>`);
-      marker.addTo(gomiMarkersLayer);
+  // includeMetadataChanges:true を付けると、サーバーにまだ届いていない
+  // ローカル書き込み（オフライン中に登録した分）の状態変化も検知できる
+  db.collection('reports').orderBy('createdAt','desc').limit(300)
+    .onSnapshot({ includeMetadataChanges: true }, snap => {
+      allGomiReports = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+      pendingGomiCount = snap.docs.filter(d => d.metadata.hasPendingWrites).length;
+      updatePendingTotal();
+
+      gomiMarkersLayer.clearLayers();
+      allGomiReports.forEach(r => {
+        if (!r.location) return;
+        const marker = L.marker([r.location.latitude, r.location.longitude]);
+        marker.bindPopup(`<div class="popup-jump" onclick="editGomi('${r.id}')">${r.emoji || '🗑️'} ${escapeHtml(r.itemType || '')}<div class="pj-link">タップで編集・打ち直し →</div></div>`);
+        marker.addTo(gomiMarkersLayer);
+      });
+      if (!document.getElementById('listPanel').classList.contains('hidden') && currentListTab === 'gomi') renderList();
     });
-    if (!document.getElementById('listPanel').classList.contains('hidden') && currentListTab === 'gomi') renderList();
-  });
 }
 
 function watchStampSpots(){
-  db.collection('stampSpots').onSnapshot(snap => {
-    allStampSpots = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-    stampMarkersLayer.clearLayers();
-    allStampSpots.forEach(s => {
-      const marker = L.marker([s.lat, s.lng], { icon: stampIconAdmin });
-      marker.bindPopup(`<div class="popup-jump" onclick="editStamp('${s.id}')"><b>${escapeHtml(s.title)}</b><br>半径${s.radius}m<div class="pj-link">タップで編集・打ち直し →</div></div>`);
-      marker.addTo(stampMarkersLayer);
+  db.collection('stampSpots')
+    .onSnapshot({ includeMetadataChanges: true }, snap => {
+      allStampSpots = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+      pendingStampCount = snap.docs.filter(d => d.metadata.hasPendingWrites).length;
+      updatePendingTotal();
+
+      stampMarkersLayer.clearLayers();
+      allStampSpots.forEach(s => {
+        const marker = L.marker([s.lat, s.lng], { icon: stampIconAdmin });
+        marker.bindPopup(`<div class="popup-jump" onclick="editStamp('${s.id}')"><b>${escapeHtml(s.title)}</b><br>半径${s.radius}m<div class="pj-link">タップで編集・打ち直し →</div></div>`);
+        marker.addTo(stampMarkersLayer);
+      });
+      if (!document.getElementById('listPanel').classList.contains('hidden') && currentListTab === 'stamp') renderList();
     });
-    if (!document.getElementById('listPanel').classList.contains('hidden') && currentListTab === 'stamp') renderList();
-  });
 }
 
 function setListTab(tab, btn){
