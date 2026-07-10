@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日本史・魂の鏡診断</title>
+    <style>
+        /* 基本スタイル：和風の落ち着いた色合い */
+        body { 
+            font-family: "Yu Mincho", "游明朝", serif; 
+            background-color: #f5f0e6; 
+            color: #4a4238; 
+            margin: 0; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh;
+            padding: 10px;
+        }
+        .container { 
+            width: 100%; 
+            max-width: 500px; 
+            background: #ffffff; 
+            border: 1px solid #d4c0a5; 
+            padding: 20px; 
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.1); 
+            box-sizing: border-box;
+        }
+        h1 { color: #5d4a3f; text-align: center; font-size: 1.5rem; border-bottom: 2px solid #b6a084; padding-bottom: 10px; }
+        .question { font-size: 1.2rem; margin: 30px 0; line-height: 1.5; text-align: center; }
+        
+        /* スマホ向けボタン設定 */
+        .btn-group { display: flex; flex-direction: column; gap: 15px; }
+        button { 
+            padding: 15px; 
+            font-size: 1.1rem; 
+            cursor: pointer; 
+            background: #6b7a66; 
+            color: #fffdf5; 
+            border: none; 
+            border-radius: 5px;
+            width: 100%;
+        }
+        button:hover { background: #4a5a46; }
+        #result { text-align: center; display: none; }
+        .name { font-size: 1.8rem; color: #5d4a3f; margin: 20px 0; font-weight: bold; }
+        #advice { line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="q-area">
+            <h1>日本史・魂の鏡診断</h1>
+            <p class="question" id="q-text">準備中です...</p>
+            <div class="btn-group">
+                <button onclick="answer(1)">はい (Yes)</button>
+                <button onclick="answer(0)">いいえ (No)</button>
+            </div>
+        </div>
+        <div id="result">
+            <h1>診断結果</h1>
+            <div class="name" id="char-name"></div>
+            <p id="advice"></p>
+            <button onclick="location.reload()">もう一度診断する</button>
+        </div>
+    </div>
+
+    <script>
+        const questions = [
+            "Q1. 計画より直感で動く方ですか？", "Q2. 社会変革に関心がある？", 
+            "Q3. 大勢をまとめたいですか？", "Q4. 時代の中心が好きですか？",
+            "Q5. 困難は感情で突破する？", "Q6. 権力や成功が大事？", 
+            "Q7. 未来志向ですか？", "Q8. チームプレイ派ですか？", 
+            "Q9. 新しい手法が好きですか？", "Q10. 人のためなら頑張れる？"
+        ];
+        
+        function getResult(score) {
+            // ここでコードごとの結果を細かく設定できます
+            const val = parseInt(score, 2);
+            if (val > 800) return { name: "坂本龍馬", advice: "あなたは時代の先駆者。あえて既存の枠を飛び越える勇気を持っています。" };
+            if (val > 500) return { name: "徳川家康", advice: "あなたは慎重かつ着実な戦略家。時を待つ強さがあなたの武器です。" };
+            if (val > 200) return { name: "良寛", advice: "あなたは独自の感性と精神性を重んじる人。内なる声に従うことが大切です。" };
+            return { name: "南方熊楠", advice: "あなたは深い知的好奇心の持ち主。独自の視点は他の誰にも真似できません。" };
+        }
+
+        let currentQ = 0;
+        let score = "";
+        document.getElementById('q-text').innerText = questions[0];
+
+        function answer(val) {
+            score += val;
+            currentQ++;
+            if (currentQ < questions.length) {
+                document.getElementById('q-text').innerText = questions[currentQ];
+            } else {
+                const res = getResult(score);
+                document.getElementById('q-area').style.display = 'none';
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('char-name').innerText = "あなたは「" + res.name + "」タイプです";
+                document.getElementById('advice').innerText = res.advice;
+            }
+        }
+    </script>
+</body>
+</html>
