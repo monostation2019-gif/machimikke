@@ -565,6 +565,20 @@ textarea.text-input{resize:none; font-family:"Noto Sans JP", sans-serif; line-he
   margin:10px 16px 20px; padding:16px 14px 18px;
   box-shadow:0 10px 26px rgba(20,30,60,0.08);
 }
+/* ---------- タイムライン：ゴミ種類（カテゴリ）フィルターチップ ---------- */
+.tl-cat-bar{
+  display:flex; gap:8px; overflow-x:auto; scrollbar-width:none;
+  padding:2px 2px 12px; margin-bottom:2px;
+  -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity;
+}
+.tl-cat-bar::-webkit-scrollbar{display:none;}
+.tl-cat-chip{
+  flex:none; scroll-snap-align:start; border:1.5px solid var(--line); background:#fff;
+  border-radius:999px; padding:10px 18px; font-size:13.5px; font-weight:800;
+  color:var(--ink); font-family:"Noto Sans JP", sans-serif; white-space:nowrap;
+}
+.tl-cat-chip:active{transform:scale(0.96);}
+.tl-cat-chip.active{border-color:var(--blue); color:var(--blue); background:#EAF1FF;}
 .month-nav-v2{display:flex; align-items:center; gap:10px; margin-bottom:14px;}
 .month-nav-btn-v2{
   flex:none; width:42px; height:42px; border-radius:50%; border:none;
@@ -604,14 +618,20 @@ textarea.text-input{resize:none; font-family:"Noto Sans JP", sans-serif; line-he
 .ttb-item .lb{font-size:10px; color:var(--muted); text-align:center; line-height:1.3;}
 .ttb-item .ct{font-size:13.5px; font-weight:900; color:var(--ink);}
 .ttb-empty{font-size:12px; color:var(--muted); text-align:center; padding:6px 0;}
+.timeline-year-label{
+  text-align:center; font-size:13px; font-weight:800; color:var(--muted);
+  margin:2px 0 0; font-family:"Zen Kaku Gothic New", sans-serif;
+}
 .timeline-slider-outer{
-  overflow-x:auto; scrollbar-width:none; margin:10px 0 2px;
+  overflow-x:auto; scrollbar-width:none; margin:6px 0 2px;
+  -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity;
 }
 .timeline-slider-outer::-webkit-scrollbar{display:none;}
 .timeline-slider{
   position:relative; display:flex; gap:22px; justify-content:center;
   padding:18px 10px 2px; min-width:100%;
 }
+.slider-month{scroll-snap-align:center;}
 .timeline-slider::before{
   content:''; position:absolute; left:8px; right:8px; bottom:15px; height:2px;
   background:var(--line); z-index:0;
@@ -820,6 +840,13 @@ textarea.text-input{resize:none; font-family:"Noto Sans JP", sans-serif; line-he
   <div class="view-header"><h2>タイムライン</h2><p>月ごとの変化をスライダーで確認</p></div>
 
   <div class="timeline-frame">
+    <div class="tl-cat-bar" id="timelineCatBar">
+      <button type="button" class="tl-cat-chip active" data-cat="all" onclick="setTimelineCategory('all', this)">すべて</button>
+      <button type="button" class="tl-cat-chip" data-cat="ポイ捨て" onclick="setTimelineCategory('ポイ捨て', this)">ポイ捨て</button>
+      <button type="button" class="tl-cat-chip" data-cat="海ごみ" onclick="setTimelineCategory('海ごみ', this)">海ごみ</button>
+      <button type="button" class="tl-cat-chip" data-cat="その他" onclick="setTimelineCategory('その他', this)">その他</button>
+    </div>
+
     <div class="month-nav-v2">
       <button type="button" class="month-nav-btn-v2" id="timelinePrevBtn" onclick="shiftTimelineMonth(-1)">‹</button>
       <div class="month-pill" id="timelineMonthLabel">2026年7月</div>
@@ -830,6 +857,7 @@ textarea.text-input{resize:none; font-family:"Noto Sans JP", sans-serif; line-he
     <p class="timeline-empty-note" id="timelineEmptyNote" style="display:none;">この月の投稿はまだありません</p>
     <div class="timeline-type-breakdown" id="timelineTypeBreakdown"></div>
 
+    <p class="timeline-year-label" id="timelineYearLabel">2026年</p>
     <div class="timeline-slider-outer"><div class="timeline-slider" id="timelineDots"></div></div>
 
     <button type="button" class="timeline-compare-btn" onclick="openCompareSheet()">変化を比較</button>
@@ -2855,6 +2883,37 @@ let timelineHeatLayer = null;
 let timelineInitialized = false;
 let cachedTimelineMonths = null; // [monthKey, ...]（古い→新しい順）。初回だけFirestoreに最初の投稿の月を問い合わせて作る
 let timelineRenderToken = 0;     // 月の連打対策：古い結果が後から表示されてしまうのを防ぐ
+let timelineCategory = 'all';    // タイムラインのカテゴリフィルター（'all' / 'ポイ捨て' / '海ごみ' / 'その他'）
+let timelineMonthReportsRaw = []; // 選択中の月の全投稿（カテゴリ未フィルター）。チップ切り替え時にFirestoreへ再問い合わせしないためのキャッシュ
+const timelineMonthReportsCache = new Map(); // 月key -> 投稿配列。過去月を行き来しても毎回Firestoreへ問い合わせない
+let timelineDotsMonths = null; // 直近にドット一覧を描画した月keyの配列（変化がなければDOMを作り直さない）
+
+/**
+ * 投稿1件が属するタイムライン用カテゴリを判定する。
+ * 「その他」は品目一覧上はポイ捨てカテゴリ内の1項目だが、タイムラインの
+ * フィルターチップ上では独立した区分として扱う（画面デザインに合わせるため）。
+ */
+function timelineCategoryOf(d){
+  if (d.itemType === 'その他') return 'その他';
+  const def = findItemType(d.itemType);
+  return (def && def.cat) || 'ポイ捨て';
+}
+function reportMatchesTimelineCategory(d, cat){
+  return cat === 'all' || timelineCategoryOf(d) === cat;
+}
+
+/**
+ * カテゴリチップ切り替え。
+ * ・すでに取得済みの月データ（timelineMonthReportsRaw）を再利用してその場で
+ *   絞り込むだけなので、Firestoreへの再問い合わせは発生しない（即座に反応する）。
+ */
+function setTimelineCategory(cat, btnEl){
+  if (timelineCategory === cat) return;
+  timelineCategory = cat;
+  document.querySelectorAll('#timelineCatBar .tl-cat-chip').forEach(c => c.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  renderTimelineHeatAndBreakdown();
+}
 
 function firstOfMonth(date){
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -2876,6 +2935,9 @@ async function reportsInMonth(date){
   if (key === monthKeyOf(new Date())){
     return monthlyReports.filter(({ d }) => isThisMonth(d));
   }
+  // 過去月は一度取得したらキャッシュする（スライダーを行き来するたびに
+  // Firestoreへ再問い合わせしていたのが「動作が重い」原因の一つだったため）。
+  if (timelineMonthReportsCache.has(key)) return timelineMonthReportsCache.get(key);
   const start = firebase.firestore.Timestamp.fromDate(firstOfMonth(date));
   const end = firebase.firestore.Timestamp.fromDate(new Date(date.getFullYear(), date.getMonth() + 1, 1));
   try {
@@ -2885,6 +2947,7 @@ async function reportsInMonth(date){
       .get();
     const items = [];
     snap.forEach(doc => items.push({ id: doc.id, d: doc.data() }));
+    timelineMonthReportsCache.set(key, items);
     return items;
   } catch(err){
     console.error('月別投稿取得エラー:', err);
@@ -2953,7 +3016,24 @@ async function renderTimeline(){
   const monthReports = await reportsInMonth(timelineMonthDate);
   if (myToken !== timelineRenderToken) return; // その間に別の月に切り替えられていたら、この結果は捨てる
 
-  const heatPoints = monthReports.filter(({ d }) => d.location).map(({ d }) => [d.location.latitude, d.location.longitude, 0.6]);
+  timelineMonthReportsRaw = monthReports;
+  renderTimelineHeatAndBreakdown();
+
+  renderTimelineDots();
+  updateTimelineNavButtons();
+
+  requestAnimationFrame(() => { if (timelineMap) timelineMap.invalidateSize(); });
+}
+
+/**
+ * 現在キャッシュ済みの月データ（timelineMonthReportsRaw）に、選択中の
+ * カテゴリフィルターをかけてヒートマップと種類別内訳を再描画する。
+ * ・Firestoreへは問い合わせない（カテゴリチップの切り替えを一瞬で反映するため）。
+ */
+function renderTimelineHeatAndBreakdown(){
+  const emptyNote = document.getElementById('timelineEmptyNote');
+  const filtered = timelineMonthReportsRaw.filter(({ d }) => reportMatchesTimelineCategory(d, timelineCategory));
+  const heatPoints = filtered.filter(({ d }) => d.location).map(({ d }) => [d.location.latitude, d.location.longitude, 0.6]);
 
   if (timelineHeatLayer) timelineMap.removeLayer(timelineHeatLayer);
   timelineHeatLayer = L.heatLayer(heatPoints, { radius:32, blur:24, maxZoom:16 }).addTo(timelineMap);
@@ -2963,16 +3043,12 @@ async function renderTimeline(){
     const bounds = L.latLngBounds(heatPoints.map(p => [p[0], p[1]]));
     timelineMap.fitBounds(bounds.pad(0.35), { maxZoom:15 });
   } else {
-    emptyNote.textContent = 'この月の投稿はまだありません';
+    emptyNote.textContent = timelineMonthReportsRaw.length ? 'この条件に一致する投稿はありません' : 'この月の投稿はまだありません';
     emptyNote.style.display = '';
     timelineMap.setView(DEFAULT_CENTER, 13);
   }
 
-  renderTimelineDots();
-  updateTimelineNavButtons();
-  renderTimelineTypeBreakdown(monthReports);
-
-  requestAnimationFrame(() => { if (timelineMap) timelineMap.invalidateSize(); });
+  renderTimelineTypeBreakdown(filtered);
 }
 
 /**
@@ -3020,21 +3096,38 @@ async function renderTimelineDots(){
   const months = await getTimelineMonths();
   const currentKey = monthKeyOf(timelineMonthDate);
 
-  wrap.innerHTML = '';
-  months.forEach(key => {
-    const y = Math.floor(key / 12), m = key % 12;
-    const date = new Date(y, m, 1);
-    const isActive = key === currentKey;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'slider-month' + (isActive ? ' active' : '');
-    btn.innerHTML = `<span class="lbl">${m+1}月</span><span class="tick"></span><span class="pill">${m+1}月</span>`;
-    btn.onclick = () => { timelineMonthDate = date; renderTimeline(); };
-    wrap.appendChild(btn);
+  // 月の一覧が前回と変わっていなければDOMは作り直さず、activeの付け替えだけ行う。
+  // （以前は月を切り替えるたびに全ドットを毎回作り直していたため、月数が増えるほど
+  //   スワイプ操作がもたついていた。これがタイムライン内の「動作が悪い」原因の一つ）
+  const sameMonths = timelineDotsMonths
+    && timelineDotsMonths.length === months.length
+    && timelineDotsMonths[timelineDotsMonths.length - 1] === months[months.length - 1];
+
+  if (!sameMonths){
+    wrap.innerHTML = '';
+    months.forEach(key => {
+      const y = Math.floor(key / 12), m = key % 12;
+      const date = new Date(y, m, 1);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'slider-month';
+      btn.dataset.key = String(key);
+      btn.innerHTML = `<span class="lbl">${m+1}月</span><span class="tick"></span><span class="pill">${m+1}月</span>`;
+      btn.onclick = () => { timelineMonthDate = date; renderTimeline(); };
+      wrap.appendChild(btn);
+    });
+    timelineDotsMonths = months.slice();
+  }
+
+  wrap.querySelectorAll('.slider-month').forEach(btn => {
+    btn.classList.toggle('active', Number(btn.dataset.key) === currentKey);
   });
 
+  const yearLabel = document.getElementById('timelineYearLabel');
+  if (yearLabel) yearLabel.textContent = `${Math.floor(currentKey / 12)}年`;
+
   const activeDot = wrap.querySelector('.slider-month.active');
-  if (activeDot) activeDot.scrollIntoView({ inline:'center', block:'nearest' });
+  if (activeDot) activeDot.scrollIntoView({ inline:'center', block:'nearest', behavior:'smooth' });
 }
 
 async function updateTimelineNavButtons(){
