@@ -28,7 +28,11 @@ const APP_SHELL = [
  */
 async function resolveCacheName(){
   try {
-    const res = await fetch('./index.html', { cache: 'no-store' });
+    // ヘッダー（Last-Modified / ETag）が分かればよく、本文（HTML全体）は
+    // 不要なため、GETではなくHEADで取得する。これによりindex.html本体を
+    // 丸ごとダウンロードする無駄がなくなり、install/activate、および
+    // Service Worker再起動直後の最初のfetch処理が速くなる。
+    const res = await fetch('./index.html', { method: 'HEAD', cache: 'no-store' });
     const tag = res.headers.get('last-modified') || res.headers.get('etag');
     if (tag){
       const safeTag = tag.replace(/[^a-zA-Z0-9]/g, '').slice(0, 40);
