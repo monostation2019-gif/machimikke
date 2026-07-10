@@ -1,82 +1,72 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>日本史・魂の鏡診断</title>
-    <style>
-        body { font-family: "Yu Mincho", serif; background-color: #f5f0e6; color: #4a4238; display: flex; justify-content: center; padding: 20px; }
-        .container { width: 100%; max-width: 500px; background: #ffffff; border: 1px solid #d4c0a5; padding: 30px; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); text-align: center; }
-        h1 { color: #5d4a3f; font-size: 1.4rem; border-bottom: 2px solid #b6a084; padding-bottom: 10px; }
-        .question { font-size: 1.2rem; margin: 30px 0; }
-        button { display: block; width: 100%; padding: 15px; margin: 10px 0; font-size: 1.1rem; cursor: pointer; background: #6b7a66; color: #fffdf5; border: none; border-radius: 5px; }
-        #result { display: none; }
-        .name { font-size: 1.8rem; color: #5d4a3f; font-weight: bold; margin: 20px 0; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div id="q-area">
-            <h1>日本史・魂の鏡診断</h1>
-            <p class="question" id="q-text">準備中です...</p>
-            <button onclick="answer(1)">はい</button>
-            <button onclick="answer(0)">いいえ</button>
-        </div>
-        <div id="result">
-            <h1>診断結果</h1>
-            <div class="name" id="char-name"></div>
-            <p id="advice"></p>
-            <button onclick="location.reload()">最初からやり直す</button>
-        </div>
-    </div>
-
-    <script>
-        const questions = [
-            "Q1. 計画より直感で動く方ですか？", "Q2. 社会変革に関心がある？", 
-            "Q3. 大勢をまとめたいですか？", "Q4. 時代の中心が好きですか？",
-            "Q5. 困難は感情で突破する？", "Q6. 権力や成功が大事？", 
-            "Q7. 未来志向ですか？", "Q8. チームプレイ派ですか？", 
-            "Q9. 新しい手法が好きですか？", "Q10. 人のためなら頑張れる？"
-        ];
-
-        // 50人の詳細データ
+// スクリプト部分を以下に差し替えてください
         const characterData = [
             {name: "織田信長", advice: "破壊と創造の革命児。既存の枠組みを壊し、新しい未来を切り拓く力があります。"},
-            {name: "豊臣秀吉", advice: "知恵と情熱で成り上がった戦略家。人たらしの愛嬌と柔軟な発想が武器です。"},
-            {name: "徳川家康", advice: "忍耐と大局観。時を待つ強さが、確実な平和を築き上げます。"},
-            {name: "坂本龍馬", advice: "自由な魂と広い視野。時代の奔流を乗りこなし、新たな循環の橋渡しをします。"},
-            {name: "南方熊楠", advice: "孤高の探究者。誰にも真似できない独自の視点で、真理を追い求めてください。"},
-            {name: "良寛", advice: "無欲と慈悲の象徴。ありのままの心で、人々に安らぎを与える存在です。"},
-            {name: "千利休", advice: "美の極致を追求する求道者。日常の小さな動作に、神聖な意味を見出す力があります。"},
-            {name: "与謝野晶子", advice: "情熱的な自己表現者。自分の心に正直に、愛と自由を叫び続けてください。"},
-            {name: "聖徳太子", advice: "調和の体現者。全体を俯瞰し、異なる意見を一つにまとめる調停役です。"},
-            {name: "空海", advice: "深遠なる智慧の継承者。未知なるものに飛び込み、真理を解き明かす冒険家です。"},
-            // ... ここに50人分を記述します（以下、同様に順次追加）
-            {name: "北条政子", advice: "意志の強さと守る力。大切なもののためなら、どんな困難にも立ち向かう覚悟があります。"},
-            {name: "紫式部", advice: "鋭い観察眼と豊かな感性。見えない心の機微を言葉にする才能に溢れています。"},
-            {name: "渋沢栄一", advice: "道徳と経済の両立を掲げる先駆者。あなたの行動は、社会の新しい循環を生みます。"},
-            {name: "平塚らいてう", advice: "自立と解放の旗手。既存の価値観に挑み、新たな女性像を切り拓く力があります。"}
-            // ※残りの36名分も同様に構造化して追加可能です
+            {name: "豊臣秀吉", advice: "知恵と情熱で成り上がった戦略家。柔軟な発想が武器です。"},
+            {name: "徳川家康", advice: "忍耐と大局観。確実な平和を築き上げる戦略家です。"},
+            {name: "坂本龍馬", advice: "自由な魂と広い視野。新たな循環の橋渡しをします。"},
+            {name: "南方熊楠", advice: "孤高の探究者。独自の視点で真理を追い求めてください。"},
+            {name: "良寛", advice: "無欲と慈悲の象徴。人々に安らぎを与える存在です。"},
+            {name: "千利休", advice: "美の極致を追求する求道者。日常に神聖な意味を見出します。"},
+            {name: "与謝野晶子", advice: "情熱的な自己表現者。愛と自由を叫び続けてください。"},
+            {name: "聖徳太子", advice: "調和の体現者。異なる意見をまとめる調停役です。"},
+            {name: "空海", advice: "深遠なる智慧の継承者。未知なる真理を解き明かします。"},
+            {name: "北条政子", advice: "意志の強さと守る力。困難に立ち向かう覚悟があります。"},
+            {name: "紫式部", advice: "鋭い観察眼と豊かな感性。心の機微を表現する才能があります。"},
+            {name: "渋沢栄一", advice: "道徳と経済の両立を掲げる先駆者。新しい循環を生みます。"},
+            {name: "平塚らいてう", advice: "自立と解放の旗手。既存の価値観に挑む力があります。"},
+            {name: "武田信玄", advice: "風林火山の如き戦略家。結束力を高め、組織を導きます。"},
+            {name: "上杉謙信", advice: "義を貫く闘将。高い理想を持って行動します。"},
+            {name: "伊能忠敬", advice: "執念の探究者。一歩ずつ着実に偉業を成し遂げます。"},
+            {name: "平賀源内", advice: "万能のアイデアマン。好奇心のままに道を切り拓きます。"},
+            {name: "親鸞", advice: "内省の哲人。ありのままの自分を受け入れる強さがあります。"},
+            {name: "道元", advice: "静寂の修行者。今この瞬間に集中する力があります。"},
+            {name: "本居宣長", advice: "古典の探究者。言葉の奥にある真実を読み解きます。"},
+            {name: "西田幾多郎", advice: "思索の深淵。独自の哲学で世界を捉える力があります。"},
+            {name: "樋口一葉", advice: "繊細な文人。困難の中で光を見出す感受性があります。"},
+            {name: "清少納言", advice: "機知に富んだ随筆家。物事の面白がり方を知っています。"},
+            {name: "市川房枝", advice: "権利の守護者。社会の不均衡を正す正義感があります。"},
+            {name: "津田梅子", advice: "教育の先駆者。未来を担う人々の可能性を信じます。"},
+            {name: "野口英世", advice: "ひたむきな科学者。夢のためならどんな努力も惜しみません。"},
+            {name: "明治天皇", advice: "激動の時代の支柱。変化を受け入れ、調和を求めます。"},
+            {name: "昭和天皇", advice: "平和への祈り。歴史を重んじ、慎重に道を歩みます。"},
+            {name: "雪舟", advice: "墨絵の達人。無駄を削ぎ落とし、本質を描き出します。"},
+            {name: "尾形光琳", advice: "華麗なる装飾美。日常に彩りを与える才能があります。"},
+            {name: "俵屋宗達", advice: "革新的な芸術家。大胆な構成で美を定義します。"},
+            {name: "葛飾北斎", advice: "飽くなき探究心。生涯を通じて成長し続ける精神があります。"},
+            {name: "小林一茶", advice: "庶民の詩人。弱き者に寄り添う優しさがあります。"},
+            {name: "松尾芭蕉", advice: "旅する文人。道中の中に深淵な美を見出します。"},
+            {name: "世阿弥", advice: "芸の探究者。時間をかけて極めた成果は人を魅了します。"},
+            {name: "日蓮", advice: "熱き信念の体現者。理想のために声を上げ続けます。"},
+            {name: "最澄", advice: "慈悲の広がり。周囲を照らす存在として生きています。"},
+            {name: "平田篤胤", advice: "伝統の再発見。ルーツの中に今の指針を見つけます。"},
+            {name: "大久保利通", advice: "冷徹な組織人。国家の基盤を作る冷静さがあります。"},
+            {name: "伊藤博文", advice: "外交の匠。異なる立場を橋渡しする柔軟さがあります。"},
+            {name: "大隈重信", advice: "開明的な改革家。新しい教育のあり方を探求します。"},
+            {name: "山県有朋", advice: "組織の守護者。堅実な防衛戦略の持ち主です。"},
+            {name: "高杉晋作", advice: "情熱の奇兵隊。型破りな行動で突破口を作ります。"},
+            {name: "西郷隆盛", advice: "大きな慈愛。多くの人に慕われる求心力があります。"},
+            {name: "福沢諭吉", advice: "独立自尊の精神。自ら考え、行動する力が根付いています。"},
+            {name: "新渡戸稲造", advice: "架け橋の精神。日本と世界をつなぐ視点があります。"},
+            {name: "小林秀雄", advice: "批評の鋭さ。事象の本質を言葉にする力があります。"},
+            {name: "一休宗純", advice: "常識の破壊者。ユーモアで真実を説く力があります。"},
+            {name: "源頼朝", advice: "規律の創造主。新しい体制を築く厳格なリーダーです。" }
         ];
 
-        let currentQ = 0, score = "";
-        document.getElementById('q-text').innerText = questions[0];
-
+        // 判定式を改善：50人全員に均等に振り分ける
         function answer(val) {
             score += val;
             currentQ++;
             if (currentQ < questions.length) {
                 document.getElementById('q-text').innerText = questions[currentQ];
             } else {
-                // 回答コードをインデックスに変換（50で割った余りで判定）
-                const index = parseInt(score, 2) % characterData.length;
-                const res = characterData[index] || characterData[0];
+                // 回答パターンを50人のインデックスに綺麗にマップする
+                const totalScore = parseInt(score, 2);
+                const index = Math.floor((totalScore / 1024) * characterData.length);
+                const res = characterData[index];
+                
                 document.getElementById('q-area').style.display = 'none';
                 document.getElementById('result').style.display = 'block';
                 document.getElementById('char-name').innerText = "あなたは「" + res.name + "」タイプです";
                 document.getElementById('advice').innerText = res.advice;
             }
         }
-    </script>
-</body>
-</html>
