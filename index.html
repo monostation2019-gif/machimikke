@@ -1679,7 +1679,9 @@ const APPROACH_EXTRA_METERS = 80;  // 捕獲判定の半径＋このぶん手前
    呼ばれても確実に音が鳴るようにする。 */
 let sharedAudioCtx = null;
 function getAudioContext(){
-  if (!sharedAudioCtx){
+  // sharedAudioCtxがclosed状態（誤って閉じられてしまった場合など）でも
+  // 音が鳴らなくなったままにならないよう、closed時は作り直す
+  if (!sharedAudioCtx || sharedAudioCtx.state === 'closed'){
     try { sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
     catch (err){ console.warn('AudioContextの作成に失敗:', err); return null; }
   }
@@ -3396,7 +3398,11 @@ function playPiconSound(){
     };
     playTone(1046.5, 0,    0.11, 0.22); // ピ
     playTone(1568.0, 0.10, 0.24, 0.20); // コン
-    setTimeout(() => ctx.close().catch(() => {}), 700);
+    // 注意: ここでctx.close()は呼ばない。
+    // このAudioContextはgetAudioContext()経由でアプリ全体（接近通知音など）と
+    // 共有しているため、ここで閉じてしまうと以降ずっと音が鳴らなくなる
+    // （closed状態のAudioContextはcreateOscillator()等が例外を投げるだけで、
+    // 　try/catchに握りつぶされて「無音のまま何も起きない」ように見えるバグの原因だった）。
   } catch(err){
     console.warn('効果音の再生に失敗しました:', err);
   }
