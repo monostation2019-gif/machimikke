@@ -801,7 +801,7 @@
   // window.storageはClaudeのプレビュー環境専用APIで本番(Vercel等)には存在しないため、
   // 実際に動かすデータはすべてFirestoreに保存する。
   var PINS_COLLECTION = 'reports';
-  var PROFILES_COLLECTION = 'profiles';
+  var PROFILES_COLLECTION = 'users';
 
   async function listPins(){
     var snap = await getDocs(collection(db, PINS_COLLECTION));
