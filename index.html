@@ -196,16 +196,21 @@
   .pop p{ font-size:12.5px; line-height:1.5; margin:0 0 8px; color:var(--sumi); }
   .pop p.range-note{ font-size:10.5px; color:var(--vermillion-deep); margin:-2px 0 8px; }
   .pop .meta{ font-size:10.5px; color:#9a9184; margin-bottom:8px;}
-  .pop-actions{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .pop-actions{ display:flex; align-items:center; gap:10px; }
   .pop .nav-btn{
     border:none; background: var(--indigo); color:#fff;
     font-size:11.5px; font-weight:500; cursor:pointer;
     padding:6px 12px; border-radius:999px;
   }
+  .pop .edit{
+    border:1px solid var(--indigo); background:none; color:var(--indigo);
+    font-size:11px; font-weight:500; cursor:pointer;
+    padding:5px 11px; border-radius:999px;
+  }
   .pop .del{
     border:none; background:none; color:var(--vermillion-deep);
     font-size:11px; cursor:pointer; padding:0; text-decoration:underline;
-    flex:0 0 auto;
+    flex:0 0 auto; margin-left:auto;
   }
 
   /* ---------- bottom sheet form ---------- */
@@ -689,7 +694,7 @@
 
 <div id="sheet-overlay"></div>
 <div id="sheet">
-  <h2>見つけたものを登録</h2>
+  <h2 id="sheet-title">見つけたものを登録</h2>
   <div class="coord" id="sheet-coord">緯度経度</div>
 
   <label>タイトル</label>
@@ -708,10 +713,7 @@
     <div class="cat-chip" data-cat="その他">その他</div>
   </div>
 
-  <label>町(タップ位置から自動判定・手動でも変更できます)</label>
-  <select id="f-machi">
-    <option value="">選択しない</option>
-  </select>
+  <label>町(タップ位置から自動判定)</label>
   <div class="machi-status" id="machi-status"></div>
 
   <label>写真(任意)</label>
@@ -870,323 +872,9 @@
   var myLocation = null;      // 現在地(GPS)
   var myLocationMarker = null;
 
-  var CATEGORY_ICON = {
-    'ゴミ':        { ch: 'ゴ', color: '#B23A2E' },
-    'グルメ':      { ch: '食', color: '#D9642F' },
-    '自然':        { ch: '緑', color: '#5C7A45' },
-    '歴史・文化':  { ch: '史', color: '#253A50' },
-    'おすすめ':    { ch: '推', color: '#B8860B' },
-    'その他':      { ch: '他', color: '#7C7266' }
-  };
-
-  function hankoIcon(draft, category){
-    var style = CATEGORY_ICON[category] || { ch: '見', color: '#B23A2E' };
-    return L.divIcon({
-      className: '',
-      html: '<div class="hanko-icon' + (draft ? ' draft' : '') +
-        '" style="border-color:' + style.color + '; color:' + style.color + ';">' +
-        style.ch + '</div>',
-      iconSize: [34,34],
-      iconAnchor: [17,17]
-    });
-  }
-
-  function updateCount(){
-    document.getElementById('pin-count-num').textContent = Object.keys(markers).length;
-  }
-
-  function fmtDate(ts){
-    var d = new Date(ts);
-    return (d.getMonth()+1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
-  }
-
-  function popupHtml(pin){
-    return '<div class="pop">' +
-      (pin.photo ? '<img class="pop-photo" src="'+pin.photo+'" alt="投稿写真">' : '') +
-      (pin.category ? '<span class="cat">'+escapeHtml(pin.category)+'</span>' : '') +
-      (pin.machi ? ' <span class="cat machi-tag">'+escapeHtml(pin.machi)+'</span>' : '') +
-      (pin.category || pin.machi ? '<br>' : '') +
-      '<h3>'+escapeHtml(pin.title)+'</h3>' +
-      (pin.memo ? '<p>'+escapeHtml(pin.memo)+'</p>' : '') +
-      (pin.category === 'ゴミ' ? '<p class="range-note">地図上の円は登録範囲(約5m四方)の目安です</p>' : '') +
-      '<div class="meta">'+fmtDate(pin.createdAt)+' 登録'+(pin.createdBy ? ' ・ '+escapeHtml(pin.createdBy) : '')+'</div>' +
-      '<div class="pop-actions">' +
-        '<button class="nav-btn" onclick="window.__navigateTo('+pin.lat+','+pin.lng+')">ここへナビ</button>' +
-        '<button class="del" onclick="window.__deletePin(\''+pin.id+'\')">削除</button>' +
-      '</div>' +
-      '</div>';
-  }
-
-  window.__navigateTo = function(lat, lng){
-    var url;
-    if(myLocation){
-      url = 'https://www.google.com/maps/dir/?api=1&origin=' + myLocation.lat + ',' + myLocation.lng +
-        '&destination=' + lat + ',' + lng + '&travelmode=walking';
-    }else{
-      url = 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lng + '&travelmode=walking';
-    }
-    window.open(url, '_blank');
-  };
-
-  function escapeHtml(s){
-    return (s||'').replace(/[&<>"']/g, function(c){
-      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
-    });
-  }
-
-  // ---- ゴミピン:タップ時に登録範囲(5m角)を円で表示 ----
-  function showGomiRangeCircle(pin){
-    hideGomiRangeCircle();
-    gomiRangeCircle = L.circle([pin.lat, pin.lng], {
-      radius: 2.5, // 直径5m ≒ 5m角の登録範囲を表す円
-      color: '#B23A2E',
-      weight: 2,
-      dashArray: '4,3',
-      fillColor: '#B23A2E',
-      fillOpacity: 0.16
-    }).addTo(map);
-  }
-
-  function hideGomiRangeCircle(){
-    if(gomiRangeCircle){
-      map.removeLayer(gomiRangeCircle);
-      gomiRangeCircle = null;
-    }
-  }
-
-  function addMarkerToMap(pin){
-    var m = L.marker([pin.lat, pin.lng], { icon: hankoIcon(false, pin.category) }).addTo(map);
-    m.bindPopup(popupHtml(pin));
-    if(pin.category === 'ゴミ'){
-      m.on('popupopen', function(){ showGomiRangeCircle(pin); });
-      m.on('popupclose', function(){ hideGomiRangeCircle(); });
-    }
-    markers[pin.id] = m;
-    pinStore[pin.id] = pin;
-    updateCount();
-  }
-
-  window.__deletePin = async function(id){
-    try{
-      await window.storage.delete('pin:' + id, true);
-    }catch(e){ /* 既に無い場合等は無視 */ }
-    if(markers[id]){
-      map.removeLayer(markers[id]);
-      delete markers[id];
-    }
-    delete pinStore[id];
-    hideGomiRangeCircle();
-    updateCount();
-    showToast('削除しました');
-  };
-
-  async function loadPins(){
-    try{
-      var listRes = await window.storage.list('pin:', true);
-      if(!listRes || !listRes.keys) return;
-      for(var i=0; i<listRes.keys.length; i++){
-        try{
-          var r = await window.storage.get(listRes.keys[i], true);
-          if(r && r.value){
-            var pin = JSON.parse(r.value);
-            addMarkerToMap(pin);
-          }
-        }catch(e){}
-      }
-    }catch(e){
-      console.error('読み込みエラー', e);
-    }
-  }
-
-  async function savePin(pin){
-    await window.storage.set('pin:' + pin.id, JSON.stringify(pin), true);
-  }
-
-  // ---- map tap -> open sheet ----
-  var hintPill = document.getElementById('hint-pill');
-  var sheet = document.getElementById('sheet');
-  var overlay = document.getElementById('sheet-overlay');
-
-  map.on('click', function(e){
-    hideGomiRangeCircle();
-    draftLatLng = e.latlng;
-    if(draftMarker) map.removeLayer(draftMarker);
-    draftMarker = L.marker(e.latlng, { icon: hankoIcon(true) }).addTo(map);
-    openSheet(e.latlng);
-    attemptAutoDetectMachi(e.latlng);
-  });
-
-  // ---- 町の自動判定(国土地理院 逆ジオコーディングAPI・失敗時は手動選択にフォールバック) ----
-  function normalizeTownBase(name){
-    if(!name) return '';
-    return name.replace(/[0-9０-９一二三四五六七八九十]+丁目$/, '').trim();
-  }
-
-  function withTimeout(promise, ms){
-    return Promise.race([
-      promise,
-      new Promise(function(resolve){ setTimeout(function(){ resolve(null); }, ms); })
-    ]);
-  }
-
-  async function reverseGeocodeTown(lat, lng){
-    try{
-      var url = 'https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=' + lat + '&lon=' + lng;
-      var res = await withTimeout(fetch(url), 4000);
-      if(!res || !res.ok) return null;
-      var data = await res.json();
-      if(data && data.results && data.results.lv01Nm){
-        return data.results.lv01Nm;
-      }
-    }catch(e){ /* 通信エラー・ブロック時は自動判定なしにフォールバック */ }
-    return null;
-  }
-
-  var autoDetectToken = 0;
-  async function attemptAutoDetectMachi(latlng){
-    var myToken = ++autoDetectToken;
-    var statusEl = document.getElementById('machi-status');
-    var sel = document.getElementById('f-machi');
-    statusEl.className = 'machi-status';
-    statusEl.textContent = '町を自動判定中…';
-    var raw = await reverseGeocodeTown(latlng.lat, latlng.lng);
-    if(myToken !== autoDetectToken) return; // シート再オープン等で無効化
-    var base = normalizeTownBase(raw);
-    var matched = null;
-    for(var i=0; i<sel.options.length; i++){
-      if(sel.options[i].value && sel.options[i].value === base){ matched = sel.options[i].value; break; }
-    }
-    if(matched){
-      sel.value = matched;
-      statusEl.className = 'machi-status';
-      statusEl.textContent = '「' + matched + '」を自動で選択しました(違う場合は選び直せます)';
-    }else{
-      statusEl.className = 'machi-status err';
-      statusEl.textContent = '自動判定できませんでした。町を手動で選んでください';
-    }
-  }
-
-  function openSheet(latlng){
-    document.getElementById('f-title').value = '';
-    document.getElementById('f-memo').value = '';
-    document.getElementById('f-machi').value = '';
-    document.getElementById('machi-status').textContent = '';
-    document.getElementById('machi-status').className = 'machi-status';
-    selectedCat = null;
-    draftPinPhoto = null;
-    document.getElementById('photo-preview-wrap').style.display = 'none';
-    document.querySelectorAll('.cat-chip').forEach(function(c){ c.classList.remove('selected'); });
-    document.getElementById('sheet-coord').textContent =
-      '緯度 ' + latlng.lat.toFixed(5) + ' / 経度 ' + latlng.lng.toFixed(5);
-    overlay.style.display = 'block';
-    sheet.classList.add('open');
-    hintPill.style.opacity = '0';
-    setTimeout(function(){ document.getElementById('f-title').focus(); }, 250);
-  }
-
-  function closeSheet(){
-    sheet.classList.remove('open');
-    overlay.style.display = 'none';
-    if(draftMarker){ map.removeLayer(draftMarker); draftMarker = null; }
-    hintPill.style.opacity = '1';
-    draftPinPhoto = null;
-    autoDetectToken++;
-    document.getElementById('photo-preview-wrap').style.display = 'none';
-  }
-
-  document.getElementById('btn-cancel').addEventListener('click', closeSheet);
-  overlay.addEventListener('click', closeSheet);
-
-  document.querySelectorAll('.cat-chip').forEach(function(chip){
-    chip.addEventListener('click', function(){
-      document.querySelectorAll('.cat-chip').forEach(function(c){ c.classList.remove('selected'); });
-      chip.classList.add('selected');
-      selectedCat = chip.dataset.cat;
-    });
-  });
-
-  // ---- 見つけた物の写真(撮る/アルバム) ----
-  var pinPhotoCameraInput = document.getElementById('pin-photo-camera-input');
-  var pinPhotoGalleryInput = document.getElementById('pin-photo-gallery-input');
-  var photoPreviewWrap = document.getElementById('photo-preview-wrap');
-  var photoPreviewImg = document.getElementById('photo-preview-img');
-
-  document.getElementById('btn-photo-camera').addEventListener('click', function(){
-    pinPhotoCameraInput.click();
-  });
-  document.getElementById('btn-photo-gallery').addEventListener('click', function(){
-    pinPhotoGalleryInput.click();
-  });
-
-  async function handlePinPhotoFile(fileInput){
-    var file = fileInput.files && fileInput.files[0];
-    fileInput.value = '';
-    if(!file) return;
-    try{
-      var dataUrl = await resizeImageToDataUrl(file, 720, 0.78);
-      draftPinPhoto = dataUrl;
-      photoPreviewImg.src = dataUrl;
-      photoPreviewWrap.style.display = 'block';
-    }catch(e){
-      console.error(e);
-      showToast('写真の読み込みに失敗しました');
-    }
-  }
-
-  pinPhotoCameraInput.addEventListener('change', function(){ handlePinPhotoFile(pinPhotoCameraInput); });
-  pinPhotoGalleryInput.addEventListener('change', function(){ handlePinPhotoFile(pinPhotoGalleryInput); });
-
-  document.getElementById('btn-photo-redo').addEventListener('click', function(){
-    draftPinPhoto = null;
-    photoPreviewImg.src = '';
-    photoPreviewWrap.style.display = 'none';
-  });
-
-  document.getElementById('btn-save').addEventListener('click', async function(){
-    var title = document.getElementById('f-title').value.trim();
-    if(!title){
-      showToast('タイトルを入力してください');
-      return;
-    }
-    if(!draftLatLng){ return; }
-    var pin = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2,7),
-      lat: draftLatLng.lat,
-      lng: draftLatLng.lng,
-      title: title,
-      memo: document.getElementById('f-memo').value.trim(),
-      category: selectedCat,
-      machi: document.getElementById('f-machi').value || null,
-      photo: draftPinPhoto,
-      createdAt: Date.now(),
-      createdBy: currentUser ? currentUser.name : '匿名',
-      createdById: currentUser ? currentUser.id : null
-    };
-    try{
-      await savePin(pin);
-      if(draftMarker){ map.removeLayer(draftMarker); draftMarker = null; }
-      addMarkerToMap(pin);
-      showToast('登録しました');
-      closeSheet();
-    }catch(e){
-      console.error(e);
-      showToast('保存に失敗しました。もう一度お試しください');
-    }
-  });
-
-  var toastTimer = null;
-  function showToast(msg){
-    var t = document.getElementById('toast');
-    t.textContent = msg;
-    t.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 1800);
-  }
-
-  loadPins();
-  setTimeout(function(){ hintPill.style.opacity = '0'; }, 5000);
-
-  // ---------------- ログイン処理 ----------------
+  // ---------------- ログイン処理・ピン読み込み(最優先で実行) ----------------
+  // これらは他の機能の初期化コードより前に実行することで、後続コードに
+  // 不具合が発生してもログイン復元とピン表示だけは必ず動くようにしている。
   // ユーザーIDは端末ごとに乱数(UUID)で発行するので、他の人のIDと重なることはありません。
   var loginScreen = document.getElementById('login-screen');
   var nicknameModal = document.getElementById('nickname-modal');
@@ -1304,6 +992,458 @@
     }catch(e){ /* 未ログイン */ }
     loginScreen.style.display = 'flex';
   })();
+
+  var CATEGORY_ICON = {
+    'ゴミ':        { ch: 'ゴ', color: '#B23A2E' },
+    'グルメ':      { ch: '食', color: '#D9642F' },
+    '自然':        { ch: '緑', color: '#5C7A45' },
+    '歴史・文化':  { ch: '史', color: '#253A50' },
+    'おすすめ':    { ch: '推', color: '#B8860B' },
+    'その他':      { ch: '他', color: '#7C7266' }
+  };
+
+  function hankoIcon(draft, category){
+    var style = CATEGORY_ICON[category] || { ch: '見', color: '#B23A2E' };
+    return L.divIcon({
+      className: '',
+      html: '<div class="hanko-icon' + (draft ? ' draft' : '') +
+        '" style="border-color:' + style.color + '; color:' + style.color + ';">' +
+        style.ch + '</div>',
+      iconSize: [34,34],
+      iconAnchor: [17,17]
+    });
+  }
+
+  function updateCount(){
+    document.getElementById('pin-count-num').textContent = Object.keys(markers).length;
+  }
+
+  function fmtDate(ts){
+    var d = new Date(ts);
+    return (d.getMonth()+1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+
+  function isOwnPin(pin){
+    return !!(currentUser && pin.createdById && pin.createdById === currentUser.id);
+  }
+
+  function popupHtml(pin){
+    return '<div class="pop">' +
+      (pin.photo ? '<img class="pop-photo" src="'+pin.photo+'" alt="投稿写真">' : '') +
+      (pin.category ? '<span class="cat">'+escapeHtml(pin.category)+'</span>' : '') +
+      (pin.machi ? ' <span class="cat machi-tag">'+escapeHtml(pin.machi)+'</span>' : '') +
+      (pin.category || pin.machi ? '<br>' : '') +
+      '<h3>'+escapeHtml(pin.title)+'</h3>' +
+      (pin.memo ? '<p>'+escapeHtml(pin.memo)+'</p>' : '') +
+      (pin.category === 'ゴミ' ? '<p class="range-note">地図上の円は登録範囲(約5m四方)の目安です</p>' : '') +
+      '<div class="meta">'+fmtDate(pin.createdAt)+' 登録'+(pin.createdBy ? ' ・ '+escapeHtml(pin.createdBy) : '')+'</div>' +
+      '<div class="pop-actions">' +
+        '<button class="nav-btn" onclick="window.__navigateTo('+pin.lat+','+pin.lng+')">ここへナビ</button>' +
+        (isOwnPin(pin) ? '<button class="edit" onclick="window.__editPin(\''+pin.id+'\')">編集</button>' : '') +
+        '<button class="del" onclick="window.__deletePin(\''+pin.id+'\')">削除</button>' +
+      '</div>' +
+      '</div>';
+  }
+
+  window.__navigateTo = function(lat, lng){
+    var url;
+    if(myLocation){
+      url = 'https://www.google.com/maps/dir/?api=1&origin=' + myLocation.lat + ',' + myLocation.lng +
+        '&destination=' + lat + ',' + lng + '&travelmode=walking';
+    }else{
+      url = 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lng + '&travelmode=walking';
+    }
+    window.open(url, '_blank');
+  };
+
+  window.__editPin = function(id){
+    var pin = pinStore[id];
+    if(!pin) return;
+    if(!isOwnPin(pin)){
+      showToast('自分が登録した投稿のみ編集できます');
+      return;
+    }
+    var mk = markers[id];
+    if(mk) mk.closePopup();
+    hideGomiRangeCircle();
+    draftLatLng = { lat: pin.lat, lng: pin.lng };
+    openSheet(draftLatLng, pin);
+  };
+
+  function escapeHtml(s){
+    return (s||'').replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  // ---- ゴミピン:タップ時に登録範囲(5m角)を円で表示 ----
+  function showGomiRangeCircle(pin){
+    hideGomiRangeCircle();
+    gomiRangeCircle = L.circle([pin.lat, pin.lng], {
+      radius: 2.5, // 直径5m ≒ 5m角の登録範囲を表す円
+      color: '#B23A2E',
+      weight: 2,
+      dashArray: '4,3',
+      fillColor: '#B23A2E',
+      fillOpacity: 0.16
+    }).addTo(map);
+  }
+
+  function hideGomiRangeCircle(){
+    if(gomiRangeCircle){
+      map.removeLayer(gomiRangeCircle);
+      gomiRangeCircle = null;
+    }
+  }
+
+  function addMarkerToMap(pin){
+    var m = L.marker([pin.lat, pin.lng], { icon: hankoIcon(false, pin.category) }).addTo(map);
+    m.bindPopup(popupHtml(pin));
+    if(pin.category === 'ゴミ'){
+      m.on('popupopen', function(){ showGomiRangeCircle(pin); });
+      m.on('popupclose', function(){ hideGomiRangeCircle(); });
+    }
+    markers[pin.id] = m;
+    pinStore[pin.id] = pin;
+    updateCount();
+  }
+
+  window.__deletePin = async function(id){
+    try{
+      await window.storage.delete('pin:' + id, true);
+    }catch(e){ /* 既に無い場合等は無視 */ }
+    if(markers[id]){
+      map.removeLayer(markers[id]);
+      delete markers[id];
+    }
+    delete pinStore[id];
+    hideGomiRangeCircle();
+    updateCount();
+    showToast('削除しました');
+  };
+
+  async function loadPins(){
+    try{
+      var listRes = await window.storage.list('pin:', true);
+      if(!listRes || !listRes.keys) return;
+      for(var i=0; i<listRes.keys.length; i++){
+        try{
+          var r = await window.storage.get(listRes.keys[i], true);
+          if(r && r.value){
+            var pin = JSON.parse(r.value);
+            addMarkerToMap(pin);
+          }
+        }catch(e){}
+      }
+    }catch(e){
+      console.error('読み込みエラー', e);
+    }
+  }
+
+  async function savePin(pin){
+    await window.storage.set('pin:' + pin.id, JSON.stringify(pin), true);
+  }
+
+  // ---- 他ユーザーが登録/編集/削除したピンを定期的に取り込む(簡易リアルタイム同期) ----
+  var pinSyncInFlight = false;
+  async function syncPinsFromStorage(){
+    if(pinSyncInFlight) return;
+    pinSyncInFlight = true;
+    var changed = false;
+    try{
+      var listRes = await window.storage.list('pin:', true);
+      if(!listRes || !listRes.keys) return;
+      var remoteIds = {};
+      for(var i=0; i<listRes.keys.length; i++){
+        try{
+          var r = await window.storage.get(listRes.keys[i], true);
+          if(!r || !r.value) continue;
+          var pin = JSON.parse(r.value);
+          remoteIds[pin.id] = true;
+          var existing = pinStore[pin.id];
+          if(!existing){
+            // 他のユーザーが新しく登録したピン
+            addMarkerToMap(pin);
+            changed = true;
+          }else if(
+            existing.title !== pin.title ||
+            existing.memo !== pin.memo ||
+            existing.category !== pin.category ||
+            existing.machi !== pin.machi ||
+            existing.photo !== pin.photo ||
+            existing.updatedAt !== pin.updatedAt
+          ){
+            // 内容が更新されたピン(自分の編集も含む)
+            pinStore[pin.id] = pin;
+            var mk = markers[pin.id];
+            if(mk){
+              mk.setIcon(hankoIcon(false, pin.category));
+              mk.setPopupContent(popupHtml(pin));
+            }
+            changed = true;
+          }
+        }catch(e){ /* 個別取得の失敗は無視して次のピンへ */ }
+      }
+      // 他のユーザーが削除したピンをこちらの地図からも消す
+      Object.keys(pinStore).forEach(function(id){
+        if(!remoteIds[id]){
+          if(markers[id]){ map.removeLayer(markers[id]); delete markers[id]; }
+          delete pinStore[id];
+          changed = true;
+        }
+      });
+    }catch(e){
+      console.error('ピンの同期に失敗しました', e);
+    }finally{
+      pinSyncInFlight = false;
+    }
+    if(changed){
+      updateCount();
+      if(document.getElementById('ranking-panel').classList.contains('open')) renderRanking();
+      if(document.getElementById('heatmap-panel').classList.contains('open')) renderHeatmap();
+    }
+  }
+
+  // ---- map tap -> open sheet ----
+  var hintPill = document.getElementById('hint-pill');
+  var sheet = document.getElementById('sheet');
+  var overlay = document.getElementById('sheet-overlay');
+  var draftMachi = null;   // 自動判定された町(登録時のみ使用)
+  var editingPinId = null; // 編集中の既存ピンID(新規登録時はnull)
+
+  map.on('click', function(e){
+    if(editingPinId) return; // 編集中は地図タップでの新規登録を無効化
+    hideGomiRangeCircle();
+    draftLatLng = e.latlng;
+    if(draftMarker) map.removeLayer(draftMarker);
+    draftMarker = L.marker(e.latlng, { icon: hankoIcon(true) }).addTo(map);
+    openSheet(e.latlng);
+    attemptAutoDetectMachi(e.latlng);
+  });
+
+  // ---- 町の自動判定(国土地理院 逆ジオコーディングAPI・失敗時はランキング表示時に再取得) ----
+  function normalizeTownBase(name){
+    if(!name) return '';
+    return name.replace(/[0-9０-９一二三四五六七八九十]+丁目$/, '').trim();
+  }
+
+  function withTimeout(promise, ms){
+    return Promise.race([
+      promise,
+      new Promise(function(resolve){ setTimeout(function(){ resolve(null); }, ms); })
+    ]);
+  }
+
+  async function reverseGeocodeTown(lat, lng){
+    try{
+      var url = 'https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=' + lat + '&lon=' + lng;
+      var res = await withTimeout(fetch(url), 4000);
+      if(!res || !res.ok) return null;
+      var data = await res.json();
+      if(data && data.results && data.results.lv01Nm){
+        return data.results.lv01Nm;
+      }
+    }catch(e){ /* 通信エラー・ブロック時は自動判定なしにフォールバック */ }
+    return null;
+  }
+
+  var autoDetectToken = 0;
+  async function attemptAutoDetectMachi(latlng){
+    var myToken = ++autoDetectToken;
+    var statusEl = document.getElementById('machi-status');
+    statusEl.className = 'machi-status';
+    statusEl.textContent = '町を自動判定中…';
+    var raw = await reverseGeocodeTown(latlng.lat, latlng.lng);
+    if(myToken !== autoDetectToken) return; // シート再オープン等で無効化
+    var base = normalizeTownBase(raw);
+    var matched = null;
+    for(var i=0; i<ISE_TOWNS.length; i++){
+      if(ISE_TOWNS[i] === base){ matched = ISE_TOWNS[i]; break; }
+    }
+    draftMachi = matched;
+    if(matched){
+      statusEl.className = 'machi-status';
+      statusEl.textContent = '「' + matched + '」と自動判定しました';
+    }else{
+      statusEl.className = 'machi-status err';
+      statusEl.textContent = '町を自動判定できませんでした(あとで自動的に再取得されます)';
+    }
+  }
+
+  function openSheet(latlng, editingPin){
+    editingPinId = editingPin ? editingPin.id : null;
+    document.getElementById('sheet-title').textContent = editingPin ? '投稿を編集' : '見つけたものを登録';
+    document.getElementById('btn-save').textContent = editingPin ? '更新する' : '登録する';
+    document.getElementById('f-title').value = editingPin ? editingPin.title : '';
+    document.getElementById('f-memo').value = editingPin ? (editingPin.memo || '') : '';
+    selectedCat = editingPin ? (editingPin.category || null) : null;
+    draftPinPhoto = editingPin ? (editingPin.photo || null) : null;
+    draftMachi = editingPin ? (editingPin.machi || null) : null;
+
+    var statusEl = document.getElementById('machi-status');
+    if(editingPin){
+      // 編集時は位置を変更しないため、町の再判定は行わない
+      statusEl.className = 'machi-status';
+      statusEl.textContent = editingPin.machi ? ('町: ' + editingPin.machi) : '町: 未判定(自動的に再取得されます)';
+    }else{
+      statusEl.textContent = '';
+      statusEl.className = 'machi-status';
+    }
+
+    if(draftPinPhoto){
+      document.getElementById('photo-preview-img').src = draftPinPhoto;
+      document.getElementById('photo-preview-wrap').style.display = '';
+    }else{
+      document.getElementById('photo-preview-wrap').style.display = 'none';
+    }
+
+    document.querySelectorAll('.cat-chip').forEach(function(c){
+      c.classList.toggle('selected', !!selectedCat && c.dataset.cat === selectedCat);
+    });
+    document.getElementById('sheet-coord').textContent =
+      '緯度 ' + latlng.lat.toFixed(5) + ' / 経度 ' + latlng.lng.toFixed(5);
+    overlay.style.display = 'block';
+    sheet.classList.add('open');
+    hintPill.style.opacity = '0';
+    setTimeout(function(){ document.getElementById('f-title').focus(); }, 250);
+  }
+
+  function closeSheet(){
+    sheet.classList.remove('open');
+    overlay.style.display = 'none';
+    if(draftMarker){ map.removeLayer(draftMarker); draftMarker = null; }
+    hintPill.style.opacity = '1';
+    draftPinPhoto = null;
+    editingPinId = null;
+    autoDetectToken++;
+    document.getElementById('photo-preview-wrap').style.display = 'none';
+  }
+
+  document.getElementById('btn-cancel').addEventListener('click', closeSheet);
+  overlay.addEventListener('click', closeSheet);
+
+  document.querySelectorAll('.cat-chip').forEach(function(chip){
+    chip.addEventListener('click', function(){
+      document.querySelectorAll('.cat-chip').forEach(function(c){ c.classList.remove('selected'); });
+      chip.classList.add('selected');
+      selectedCat = chip.dataset.cat;
+    });
+  });
+
+  // ---- 見つけた物の写真(撮る/アルバム) ----
+  var pinPhotoCameraInput = document.getElementById('pin-photo-camera-input');
+  var pinPhotoGalleryInput = document.getElementById('pin-photo-gallery-input');
+  var photoPreviewWrap = document.getElementById('photo-preview-wrap');
+  var photoPreviewImg = document.getElementById('photo-preview-img');
+
+  document.getElementById('btn-photo-camera').addEventListener('click', function(){
+    pinPhotoCameraInput.click();
+  });
+  document.getElementById('btn-photo-gallery').addEventListener('click', function(){
+    pinPhotoGalleryInput.click();
+  });
+
+  async function handlePinPhotoFile(fileInput){
+    var file = fileInput.files && fileInput.files[0];
+    fileInput.value = '';
+    if(!file) return;
+    try{
+      var dataUrl = await resizeImageToDataUrl(file, 720, 0.78);
+      draftPinPhoto = dataUrl;
+      photoPreviewImg.src = dataUrl;
+      photoPreviewWrap.style.display = 'block';
+    }catch(e){
+      console.error(e);
+      showToast('写真の読み込みに失敗しました');
+    }
+  }
+
+  pinPhotoCameraInput.addEventListener('change', function(){ handlePinPhotoFile(pinPhotoCameraInput); });
+  pinPhotoGalleryInput.addEventListener('change', function(){ handlePinPhotoFile(pinPhotoGalleryInput); });
+
+  document.getElementById('btn-photo-redo').addEventListener('click', function(){
+    draftPinPhoto = null;
+    photoPreviewImg.src = '';
+    photoPreviewWrap.style.display = 'none';
+  });
+
+  document.getElementById('btn-save').addEventListener('click', async function(){
+    var title = document.getElementById('f-title').value.trim();
+    if(!title){
+      showToast('タイトルを入力してください');
+      return;
+    }
+    if(!draftLatLng){ return; }
+
+    if(editingPinId){
+      var existing = pinStore[editingPinId];
+      if(!existing){
+        showToast('編集対象が見つかりませんでした');
+        closeSheet();
+        return;
+      }
+      existing.title = title;
+      existing.memo = document.getElementById('f-memo').value.trim();
+      existing.category = selectedCat;
+      existing.photo = draftPinPhoto;
+      existing.updatedAt = Date.now();
+      try{
+        await savePin(existing);
+        pinStore[existing.id] = existing;
+        var mk = markers[existing.id];
+        if(mk){
+          mk.setIcon(hankoIcon(false, existing.category));
+          mk.setPopupContent(popupHtml(existing));
+        }
+        showToast('更新しました');
+        closeSheet();
+      }catch(e){
+        console.error(e);
+        showToast('更新に失敗しました。もう一度お試しください');
+      }
+      return;
+    }
+
+    var pin = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2,7),
+      lat: draftLatLng.lat,
+      lng: draftLatLng.lng,
+      title: title,
+      memo: document.getElementById('f-memo').value.trim(),
+      category: selectedCat,
+      machi: draftMachi || null,
+      photo: draftPinPhoto,
+      createdAt: Date.now(),
+      createdBy: currentUser ? currentUser.name : '匿名',
+      createdById: currentUser ? currentUser.id : null
+    };
+    try{
+      await savePin(pin);
+      if(draftMarker){ map.removeLayer(draftMarker); draftMarker = null; }
+      addMarkerToMap(pin);
+      showToast('登録しました');
+      closeSheet();
+    }catch(e){
+      console.error(e);
+      showToast('保存に失敗しました。もう一度お試しください');
+    }
+  });
+
+  var toastTimer = null;
+  function showToast(msg){
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 1800);
+  }
+
+  loadPins();
+  setInterval(syncPinsFromStorage, 20000); // 20秒ごとに他ユーザーの登録/編集/削除を反映
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible') syncPinsFromStorage();
+  });
+  setTimeout(function(){ hintPill.style.opacity = '0'; }, 5000);
 
   // ---------------- プロフィール ----------------
   var profileOverlay = document.getElementById('profile-overlay');
@@ -1442,18 +1582,48 @@
   var ISE_TOWNS = ["一之木","一宇田町","一志町","一色町","上地町","上野町","下野町","中之町","中島","中村町","中須町","久世戸町","二俣","二俣町","二見町三津","二見町今一色","二見町光の街","二見町山田原","二見町松下","二見町江","二見町溝口","二見町茶屋","二見町荘","二見町西","佐八町","倭町","八日市場町","円座町","前山町","勢田町","古市町","吹上","大世古","大倉町","大湊町","宇治中之切町","宇治今在家町","宇治浦田","宇治館町","宮川","宮後","宮町","小俣町元町","小俣町宮前","小俣町新村","小俣町明野","小俣町本町","小俣町湯田","小俣町相合","小木町","尾上町","岡本","岩渕","岩渕町","川端町","常磐","常磐町","御薗町上條","御薗町王中島","御薗町小林","御薗町新開","御薗町高向","御薗町長屋","旭町","曽祢","有滝町","朝熊町","本町","村松町","東大淀町","東豊浜町","柏町","桜木町","植山町","楠部町","横輪町","樫原町","河崎","津村町","浦口","浦口町","田尻町","矢持町","磯町","神久","神田久志本町","神社港","神薗町","竹ケ鼻町","粟野町","船江","藤里町","西豊浜町","豊川町","辻久留","辻久留町","通町","野村町","馬瀬町","鹿海町","黒瀬町"];
   ISE_TOWNS.sort(function(a, b){ return a.localeCompare(b, 'ja'); });
 
-  (function populateMachiSelect(){
-    var sel = document.getElementById('f-machi');
-    ISE_TOWNS.forEach(function(name){
-      var opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
-      sel.appendChild(opt);
-    });
-  })();
-
   function allPins(){
     return Object.keys(pinStore).map(function(k){ return pinStore[k]; });
+  }
+
+  // ---- 町別ランキング用: machi未設定ピンの自動補完(GSI逆ジオコーディング) ----
+  var machiAutoCache = {}; // pinId -> '町名' | null(判定失敗/リスト外)
+
+  async function resolveMachiForPin(p){
+    if(p.machi) return p.machi;
+    if(Object.prototype.hasOwnProperty.call(machiAutoCache, p.id)){
+      return machiAutoCache[p.id];
+    }
+    var raw = await reverseGeocodeTown(p.lat, p.lng);
+    var base = normalizeTownBase(raw);
+    var matched = null;
+    for(var i=0; i<ISE_TOWNS.length; i++){
+      if(ISE_TOWNS[i] === base){ matched = ISE_TOWNS[i]; break; }
+    }
+    machiAutoCache[p.id] = matched;
+    if(matched){
+      // 次回以降は再判定不要なようピン自体にも書き戻す(失敗時はキャッシュのみ)
+      p.machi = matched;
+      pinStore[p.id] = p;
+      savePin(p).catch(function(e){ console.error('machi自動補完の保存に失敗', e); });
+    }
+    return matched;
+  }
+
+  // 並列数を制限しつつ非同期処理をまとめて実行する簡易ヘルパー
+  async function mapWithLimit(items, limit, fn){
+    var results = new Array(items.length);
+    var idx = 0;
+    async function worker(){
+      while(idx < items.length){
+        var cur = idx++;
+        results[cur] = await fn(items[cur], cur);
+      }
+    }
+    var workers = [];
+    for(var i = 0; i < Math.min(limit, items.length); i++){ workers.push(worker()); }
+    await Promise.all(workers);
+    return results;
   }
 
   // ---------------- ゴミヒートマップ ----------------
@@ -1548,7 +1718,9 @@
   var rankPeriod = 'month'; // 'month' | 'all'
   var rankCat = 'ゴミ';
 
-  function renderRanking(){
+  var rankRenderToken = 0;
+  async function renderRanking(){
+    var myToken = ++rankRenderToken;
     var listEl = document.getElementById('rank-list');
     var pins = allPins().filter(function(p){ return p.category === rankCat; });
     if(rankPeriod === 'month'){
@@ -1558,16 +1730,24 @@
         return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
       });
     }
+
+    listEl.innerHTML = '<div class="rank-empty">町別に集計中…</div>';
+
+    // machi未設定のピンは位置情報から自動取得して補完
+    var resolvedMachi = await mapWithLimit(pins, 5, function(p){ return resolveMachiForPin(p); });
+    if(myToken !== rankRenderToken) return; // タブ/カテゴリ切替等で古い集計を破棄
+
     var counts = {};
-    pins.forEach(function(p){
-      if(!p.machi) return;
-      counts[p.machi] = (counts[p.machi] || 0) + 1;
+    pins.forEach(function(p, i){
+      var m = resolvedMachi[i];
+      if(!m) return;
+      counts[m] = (counts[m] || 0) + 1;
     });
     var entries = Object.keys(counts).map(function(k){ return { name: k, count: counts[k] }; });
     entries.sort(function(a, b){ return b.count - a.count; });
     listEl.innerHTML = '';
     if(entries.length === 0){
-      listEl.innerHTML = '<div class="rank-empty">まだデータがありません(登録時に町を選ぶとここに反映されます)</div>';
+      listEl.innerHTML = '<div class="rank-empty">まだデータがありません(位置情報から町を自動取得しています)</div>';
       return;
     }
     var max = entries[0].count;
