@@ -893,6 +893,24 @@
     ]);
   }
 
+  // 電波の瞬断などによる一時的な保存失敗で、せっかく入力した内容が
+  // 消えてしまわないようにするための再試行ヘルパー。
+  function retryAsync(fn, attempts, delayMs){
+    attempts = attempts || 3;
+    delayMs = delayMs || 800;
+    return new Promise(function(resolve, reject){
+      var i = 0;
+      function attempt(){
+        fn().then(resolve).catch(function(e){
+          i++;
+          if(i >= attempts){ reject(e); return; }
+          setTimeout(attempt, delayMs * i);
+        });
+      }
+      attempt();
+    });
+  }
+
   // 端末をまたいで同期できるよう、Firestoreに保存する。
   // (Firebase Authのdisplayname/photoURLは文字数・データ量の制約があるため、
   //  名前は実アカウント側(Firebase Auth)に、ひとこと/独自アイコンはFirestoreに保存する)
@@ -1225,18 +1243,20 @@
     savePinsToCache();
     showToast('削除しました');
 
-    (async function(){
-      try{
+    pendingDeleteIds[id] = true;
+    retryAsync(function(){
+      return (async function(){
         await window.__firebaseReady;
         await window.PinsAPI.remove(id);
-      }catch(e){
-        console.error('削除エラー', e);
-        // 削除に失敗したら元に戻す
-        addMarkerToMap(pinBackup);
-        savePinsToCache();
-        showToast('削除に失敗しました。もう一度お試しください');
-      }
-    })();
+      })();
+    }, 3).then(function(){
+      delete pendingDeleteIds[id];
+    }).catch(function(e){
+      console.error('削除エラー', e);
+      // 削除自体はpendingDeleteIdsに残しておき、次の自動同期やオンライン復帰時に再試行する。
+      // (ピンを画面に復元すると「消したはずなのに戻ってきた」と混乱するため、ここでは復元しない)
+      showToast('削除の送信に失敗しました。電波の良い場所で自動的に再試行します');
+    });
   };
 
   // ---- ピンのローカルキャッシュ(localStorage) ----
@@ -1300,6 +1320,68 @@
     await window.PinsAPI.save(pin);
   }
 
+  // ---- 保存/削除に失敗したデータを消さずに、後で自動的に再送する仕組み ----
+  // (電波の悪い場所での登録作業が多いため、一時的な通信失敗で
+  //  「せっかく入力したのに消えた」ということが起きないようにする)
+  var pendingDeleteIds = {}; // id -> true (Firestoreへの削除がまだ通っていないもの)
+  var profileSyncPending = null; // 保留中のプロフィール保存内容(あれば)
+
+  function markPinSyncPending(pin){
+    pin.syncPending = true;
+    pinStore[pin.id] = pin;
+    savePinsToCache();
+  }
+
+  function markPinSynced(pin){
+    if(pin.syncPending){
+      delete pin.syncPending;
+      pinStore[pin.id] = pin;
+      savePinsToCache();
+    }
+  }
+
+  var pendingSyncInFlight = false;
+  async function retryPendingSyncs(){
+    if(pendingSyncInFlight) return;
+    pendingSyncInFlight = true;
+    try{
+      // 保存待ちのピンを再送
+      var pendingIds = Object.keys(pinStore).filter(function(id){ return pinStore[id].syncPending; });
+      for(var i=0; i<pendingIds.length; i++){
+        var p = pinStore[pendingIds[i]];
+        try{
+          await savePin(p);
+          markPinSynced(p);
+        }catch(e){ /* まだ通信できない。次回にまた試す */ }
+      }
+      // 削除待ちを再送
+      var delIds = Object.keys(pendingDeleteIds);
+      for(var j=0; j<delIds.length; j++){
+        try{
+          await window.__firebaseReady;
+          await window.PinsAPI.remove(delIds[j]);
+          delete pendingDeleteIds[delIds[j]];
+        }catch(e){ /* まだ通信できない。次回にまた試す */ }
+      }
+      // プロフィール保存待ちを再送
+      if(profileSyncPending){
+        try{
+          if(profileSyncPending.nameChanged && window.AuthAPI){
+            await window.AuthAPI.updateDisplayName(profileSyncPending.name);
+          }
+          await saveProfileExtra(profileSyncPending.uid, {
+            bio: profileSyncPending.bio,
+            customIcon: profileSyncPending.icon
+          });
+          profileSyncPending = null;
+        }catch(e){ /* まだ通信できない。次回にまた試す */ }
+      }
+    }finally{
+      pendingSyncInFlight = false;
+    }
+  }
+  window.addEventListener('online', retryPendingSyncs);
+
   // ---- 他ユーザーが登録/編集/削除したピンを定期的に取り込む(簡易リアルタイム同期) ----
   var pinSyncInFlight = false;
   async function syncPinsFromStorage(){
@@ -1307,6 +1389,8 @@
     pinSyncInFlight = true;
     var changed = false;
     try{
+      // 保存待ち/削除待ちのものを先に再送しておく
+      await retryPendingSyncs();
       await window.__firebaseReady;
       var pins = await window.PinsAPI.list();
       var remoteIds = {};
@@ -1318,6 +1402,9 @@
           // 他のユーザーが新しく登録したピン
           addMarkerToMap(pin);
           changed = true;
+        }else if(existing.syncPending){
+          // まだこちらの保存がサーバーに反映されていないので、
+          // サーバー側の(古い)状態で上書きしない
         }else if(
           existing.title !== pin.title ||
           existing.memo !== pin.memo ||
@@ -1339,9 +1426,11 @@
           changed = true;
         }
       }
-      // 他のユーザーが削除したピンをこちらの地図からも消す
+      // 他のユーザーが削除したピンをこちらの地図からも消す。
+      // ただし、まだサーバーに届いていない自分の保存待ちのピンは
+      // (サーバーにまだ存在しないのが正常なので)誤って消さないようにする。
       Object.keys(pinStore).forEach(function(id){
-        if(!remoteIds[id]){
+        if(!remoteIds[id] && !pinStore[id].syncPending){
           if(markers[id]){ map.removeLayer(markers[id]); delete markers[id]; }
           delete pinStore[id];
           changed = true;
@@ -1496,6 +1585,8 @@
     var file = fileInput.files && fileInput.files[0];
     fileInput.value = '';
     if(!file) return;
+    // 選んだ直後に「処理中」であることが分かるようにする(無反応に見えるのを防ぐ)
+    showToast('写真を処理しています…');
     try{
       var dataUrl = await resizeImageToDataUrl(file, 720, 0.78);
       draftPinPhoto = dataUrl;
@@ -1531,15 +1622,6 @@
         closeSheet();
         return;
       }
-      // 通信に失敗した時に元へ戻せるよう、変更前の状態を保存しておく
-      var prevSnapshot = {
-        title: existing.title,
-        memo: existing.memo,
-        category: existing.category,
-        photo: existing.photo,
-        hasPhoto: existing.hasPhoto,
-        updatedAt: existing.updatedAt
-      };
 
       existing.title = title;
       existing.memo = document.getElementById('f-memo').value.trim();
@@ -1559,18 +1641,13 @@
       closeSheet();
       savePinsToCache();
 
-      savePin(existing).catch(function(e){
+      // 電波が悪くてすぐに保存できなくても、入力内容は消さない。
+      // 数回自動で再送し、それでもダメなら「保留」として残し、
+      // 次の自動同期(retryPendingSyncs)やオンライン復帰時に再送を続ける。
+      retryAsync(function(){ return savePin(existing); }, 3).catch(function(e){
         console.error(e);
-        // 保存に失敗したら変更前の状態に戻す
-        for(var k in prevSnapshot){ existing[k] = prevSnapshot[k]; }
-        pinStore[existing.id] = existing;
-        var mk2 = markers[existing.id];
-        if(mk2){
-          mk2.setIcon(hankoIcon(false, existing.category));
-          mk2.setPopupContent(popupHtml(existing));
-        }
-        savePinsToCache();
-        showToast('更新に失敗しました。もう一度お試しください');
+        markPinSyncPending(existing);
+        showToast('電波が不安定なため保存待ちです。回復し次第、自動的に送信します');
       });
       return;
     }
@@ -1598,14 +1675,13 @@
     closeSheet();
     savePinsToCache();
 
-    savePin(pin).catch(function(e){
+    // 電波が悪くてすぐに保存できなくても、せっかく入力した内容を消さない。
+    // 数回自動で再送し、それでもダメなら「保留」として地図には残しておき、
+    // 次の自動同期(retryPendingSyncs)やオンライン復帰時に再送を続ける。
+    retryAsync(function(){ return savePin(pin); }, 3).catch(function(e){
       console.error(e);
-      // 保存に失敗したら追加したマーカーを取り消す
-      if(markers[pin.id]){ map.removeLayer(markers[pin.id]); delete markers[pin.id]; }
-      delete pinStore[pin.id];
-      updateCount();
-      savePinsToCache();
-      showToast('保存に失敗しました。もう一度お試しください');
+      markPinSyncPending(pin);
+      showToast('電波が不安定なため保存待ちです。回復し次第、自動的に送信します');
     });
   });
 
@@ -1688,27 +1764,33 @@
     avatarGalleryInput.click();
   });
 
+  // 画像のリサイズ処理。
+  // 以前はFileReader.readAsDataURL()で「元の(スマホカメラなら数MBある)写真」を
+  // 丸ごとbase64文字列化してからImageに読み込んでいたため、大きな写真だと
+  // それだけで数秒固まったように見える原因になっていた。
+  // createObjectURL()はファイルをコピー/エンコードせず参照を渡すだけなので、
+  // ここが体感速度に直結する一番のボトルネックだった。
   function resizeImageToDataUrl(file, maxSize, quality){
     quality = quality || 0.85;
     return new Promise(function(resolve, reject){
-      var reader = new FileReader();
-      reader.onerror = function(){ reject(new Error('読み込み失敗')); };
-      reader.onload = function(){
-        var img = new Image();
-        img.onerror = function(){ reject(new Error('画像の読み込み失敗')); };
-        img.onload = function(){
-          var scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-          var w = Math.round(img.width * scale);
-          var h = Math.round(img.height * scale);
-          var canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
-          var ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL('image/jpeg', quality));
-        };
-        img.src = reader.result;
+      var objectUrl = URL.createObjectURL(file);
+      var img = new Image();
+      img.onerror = function(){
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('画像の読み込み失敗'));
       };
-      reader.readAsDataURL(file);
+      img.onload = function(){
+        URL.revokeObjectURL(objectUrl);
+        var scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        var w = Math.round(img.width * scale);
+        var h = Math.round(img.height * scale);
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = objectUrl;
     });
   }
 
@@ -1716,6 +1798,9 @@
     var file = fileInput.files && fileInput.files[0];
     fileInput.value = ''; // 同じ写真を選び直せるようにリセット
     if(!file) return;
+    // 選んだ直後に「処理中」であることが分かるようにする(無反応に見えるのを防ぐ)
+    profileAvatarEdit.style.opacity = '0.5';
+    showToast('写真を処理しています…');
     try{
       var dataUrl = await resizeImageToDataUrl(file, 200);
       draftIcon = dataUrl;
@@ -1725,6 +1810,8 @@
     }catch(e){
       console.error(e);
       showToast('写真の読み込みに失敗しました');
+    }finally{
+      profileAvatarEdit.style.opacity = '1';
     }
   }
 
@@ -1744,7 +1831,6 @@
       showToast('ニックネームを入力してください');
       return;
     }
-    var prevSnapshot = { name: currentUser.name, bio: currentUser.bio, icon: currentUser.icon };
     var nameChanged = name !== currentUser.name;
     currentUser.name = name;
     currentUser.bio = editBio.value.trim();
@@ -1756,23 +1842,22 @@
     showToast('プロフィールを保存しました');
     showProfileView();
 
-    (async function(){
-      try{
+    var uid = currentUser.id;
+    var bio = currentUser.bio;
+    var icon = currentUser.icon;
+    retryAsync(function(){
+      return (async function(){
         // 名前は実アカウント(Firebase)側にも反映し、他端末・再ログイン時も引き継がれるようにする
         if(nameChanged && window.AuthAPI) await window.AuthAPI.updateDisplayName(name);
         // ひとこと・独自アイコンは端末ローカルに保存(現状Firestore未導入のため端末単位)
-        await saveProfileExtra(currentUser.id, { bio: currentUser.bio, customIcon: currentUser.icon });
-      }catch(err){
-        console.error(err);
-        // 保存に失敗したら変更前の状態に戻す
-        currentUser.name = prevSnapshot.name;
-        currentUser.bio = prevSnapshot.bio;
-        currentUser.icon = prevSnapshot.icon;
-        userBadgeName.textContent = currentUser.name;
-        renderAvatarEl(userBadgeAvatar, currentUser);
-        showToast('プロフィールの保存に失敗しました。もう一度お試しください');
-      }
-    })();
+        await saveProfileExtra(uid, { bio: bio, customIcon: icon });
+      })();
+    }, 3).catch(function(err){
+      console.error(err);
+      // 画面上の変更は消さず、保留状態にして自動的に再送を続ける
+      profileSyncPending = { uid: uid, name: name, nameChanged: nameChanged, bio: bio, icon: icon };
+      showToast('電波が不安定なため保存待ちです。回復し次第、自動的に送信します');
+    });
   });
 
   // ================================================================
