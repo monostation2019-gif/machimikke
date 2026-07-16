@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>トレジャーシーカー伊勢 | ランキング</title>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@400;500&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --forest:#3E6B4F; --forest-deep:#2C4E3A; --forest-soft:#EAF3EC;
+    --cream:#FBF8F0; --card:#FFFFFF; --torii:#B5502F; --gold:#E3A73B;
+    --ink:#233127; --ink-soft:#7A8A7D; --line:#E7E2D4;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; margin:0;}
+  body{font-family:"Noto Sans JP", sans-serif; color:var(--ink); background:var(--forest-soft); display:flex; justify-content:center;}
+
+  .stage{width:100%; max-width:480px; min-height:100vh; min-height:100dvh; background:var(--cream); display:flex; flex-direction:column; position:relative;}
+
+  header{
+    background:linear-gradient(155deg, var(--forest) 0%, var(--forest-deep) 100%);
+    padding:calc(env(safe-area-inset-top,0px) + 16px) 18px 16px;
+    color:#fff; border-radius:0 0 22px 22px;
+  }
+  header h1{font-family:"Kiwi Maru", serif; font-weight:500; font-size:19px; margin:0 0 12px;}
+
+  .scope-tabs{display:flex; background:rgba(255,255,255,0.14); border-radius:12px; padding:4px; gap:4px;}
+  .scope-tabs button{
+    flex:1; border:none; background:transparent; color:#E7EFE7;
+    font-size:12px; font-weight:700; padding:8px 4px; border-radius:9px; cursor:pointer;
+  }
+  .scope-tabs button.active{background:#fff; color:var(--forest-deep);}
+
+  main{flex:1; padding:16px 16px 30px;}
+
+  .period-toggle{display:flex; gap:8px; margin-bottom:14px;}
+  .period-toggle button{
+    flex:1; padding:9px; border-radius:12px; border:1.5px solid var(--line);
+    background:var(--card); color:var(--ink-soft); font-size:13px; font-weight:700; cursor:pointer;
+  }
+  .period-toggle button.active{background:var(--forest-soft); border-color:var(--forest); color:var(--forest-deep);}
+
+  .rank-card{background:var(--card); border-radius:18px; padding:6px; box-shadow:0 6px 18px rgba(44,78,58,0.07); min-height:120px;}
+  .rank-row{display:flex; align-items:center; gap:12px; padding:13px 12px;}
+  .rank-row + .rank-row{border-top:1px solid var(--line);}
+  .rank-medal{
+    width:32px; height:32px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:13.5px; font-weight:900; flex-shrink:0;
+  }
+  .rank-medal.m1{background:#FCE9BE; color:#9C6B0A;}
+  .rank-medal.m2{background:#E7E9EC; color:#5C6570;}
+  .rank-medal.m3{background:#F1DCC9; color:#8A5327;}
+  .rank-medal.mn{background:var(--forest-soft); color:var(--forest-deep); font-size:12px;}
+  .rank-name{flex:1; font-size:14.5px; font-weight:500;}
+  .rank-count{font-size:13.5px; color:var(--forest-deep); font-weight:700;}
+
+  .rank-empty{text-align:center; padding:34px 14px; color:var(--ink-soft); font-size:13px; line-height:1.7;}
+  .rank-empty svg{width:28px; height:28px; margin-bottom:8px; color:var(--line);}
+
+  .skeleton-row{display:flex; align-items:center; gap:12px; padding:13px 12px;}
+  .sk{background:linear-gradient(90deg,#EFEBDF 25%,#F6F3E9 37%,#EFEBDF 63%); background-size:400% 100%; animation:sk 1.4s ease infinite; border-radius:8px;}
+  @keyframes sk{0%{background-position:100% 50%;}100%{background-position:0 50%;}}
+
+  nav.bottom{
+    position:fixed; left:50%; transform:translateX(-50%); bottom:0;
+    width:100%; max-width:480px; background:var(--card);
+    border-top:1px solid var(--line); display:flex;
+    padding:8px 6px calc(env(safe-area-inset-bottom,0px) + 8px); z-index:10;
+  }
+  nav.bottom a{flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; text-decoration:none; color:var(--ink-soft); font-size:10.5px; padding:4px 0;}
+  nav.bottom a svg{width:20px; height:20px;}
+  nav.bottom a.active{color:var(--forest-deep); font-weight:700;}
+  nav.bottom a.active svg{color:var(--forest);}
+
+  .loading-overlay{position:fixed; inset:0; z-index:99; background:var(--cream); display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; transition:opacity .35s ease;}
+  .loading-overlay .leaf{width:30px; height:30px; border:3px solid #DDE7DD; border-top-color:var(--forest); border-radius:50%; animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .loading-overlay p{color:var(--ink-soft); font-size:13px; margin:0;}
+
+  main .back-link{display:inline-flex; align-items:center; gap:5px; font-size:12.5px; color:var(--ink-soft); text-decoration:none; margin-bottom:14px;}
+  main .back-link svg{width:14px; height:14px;}
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="leaf"></div>
+  <p>読み込み中…</p>
+</div>
+
+<div class="stage">
+  <header>
+    <h1>ランキング</h1>
+    <div class="scope-tabs" id="scopeTabs">
+      <button class="active" data-scope="town">地域別</button>
+      <button data-scope="neighborhoodAssoc">自治会別</button>
+      <button data-scope="school">学校別</button>
+      <button data-scope="company">企業別</button>
+    </div>
+  </header>
+
+  <main>
+    <a class="back-link" href="home.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+      ホームに戻る
+    </a>
+
+    <div class="period-toggle">
+      <button class="active" data-period="week">週間</button>
+      <button data-period="month">月間</button>
+      <button data-period="all">累計</button>
+    </div>
+
+    <div class="rank-card" id="rankCard">
+      <div class="skeleton-row"><div class="sk" style="width:32px;height:32px;border-radius:50%;"></div><div class="sk" style="flex:1;height:14px;"></div></div>
+      <div class="skeleton-row"><div class="sk" style="width:32px;height:32px;border-radius:50%;"></div><div class="sk" style="flex:1;height:14px;"></div></div>
+      <div class="skeleton-row"><div class="sk" style="width:32px;height:32px;border-radius:50%;"></div><div class="sk" style="flex:1;height:14px;"></div></div>
+    </div>
+  </main>
+
+  <nav class="bottom">
+    <a href="home.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      ホーム
+    </a>
+    <a href="map.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 20l-6-3V4l6 3 6-3 6 3v13l-6-3-6 3z"/><path d="M9 7v13M15 4v13"/></svg>
+      マップ
+    </a>
+    <a href="discover.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      発見
+    </a>
+    <a href="mypage.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+      マイページ
+    </a>
+  </nav>
+</div>
+
+<script>
+/* =====================================================================
+   Firebase 初期化（他ページと同じ設定にしてください）
+   ===================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyB7f8QThoqYc-iDuMhKqp3MGBRAhln9ZhI",
+  authDomain: "treasure-seeker-ise.firebaseapp.com",
+  projectId: "treasure-seeker-ise",
+  storageBucket: "treasure-seeker-ise.firebasestorage.app",
+  messagingSenderId: "278199675502",
+  appId: "1:278199675502:web:295dfa975a03707f27947f"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+const LOGIN_PAGE = "login.html";
+
+const overlay   = document.getElementById('loadingOverlay');
+const rankCard  = document.getElementById('rankCard');
+const scopeTabs = document.getElementById('scopeTabs');
+const periodToggle = document.querySelector('.period-toggle');
+
+let currentScope = 'town';   // town / neighborhoodAssoc / school / company の Firestore フィールド名
+let currentPeriod = 'week'; // week / month / all
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+}
+function startOfWeek(){
+  // 月曜始まりで今週の開始時刻を計算
+  const d = new Date();
+  const day = d.getDay(); // 0=日,1=月,...6=土
+  const diffToMonday = (day === 0) ? -6 : (1 - day);
+  d.setDate(d.getDate() + diffToMonday);
+  d.setHours(0,0,0,0);
+  return firebase.firestore.Timestamp.fromDate(d);
+}
+function startOfMonth(){
+  const d = new Date();
+  d.setDate(1);
+  d.setHours(0,0,0,0);
+  return firebase.firestore.Timestamp.fromDate(d);
+}
+
+/* ---------------------------------------------------------------------
+   ランキング取得。
+   ※ reports コレクションの各ドキュメントに、地域別なら town、
+     自治会別なら neighborhoodAssoc、学校別なら school、
+     企業別なら company フィールドがある想定。
+     まだ値が入っていないカテゴリは自然に「データがありません」表示になる。
+   --------------------------------------------------------------------- */
+async function loadRanking(){
+  rankCard.innerHTML = `
+    <div class="skeleton-row"><div class="sk" style="width:32px;height:32px;border-radius:50%;"></div><div class="sk" style="flex:1;height:14px;"></div></div>
+    <div class="skeleton-row"><div class="sk" style="width:32px;height:32px;border-radius:50%;"></div><div class="sk" style="flex:1;height:14px;"></div></div>
+    <div class="skeleton-row"><div class="sk" style="width:32px;height:32px;border-radius:50%;"></div><div class="sk" style="flex:1;height:14px;"></div></div>`;
+
+  try{
+    let query = db.collection('reports').limit(2000);
+    if(currentPeriod === 'week'){
+      query = query.where('createdAt', '>=', startOfWeek());
+    }else if(currentPeriod === 'month'){
+      query = query.where('createdAt', '>=', startOfMonth());
+    }
+    // currentPeriod === 'all' の場合は期間フィルタなし
+    const snap = await query.get();
+
+    const counts = {};
+    snap.forEach(doc => {
+      const d = doc.data();
+      const key = d[currentScope];
+      if(!key) return;
+      counts[key] = (counts[key] || 0) + 1;
+    });
+
+    const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+    renderRanking(sorted);
+  }catch(err){
+    console.error('ランキングの取得に失敗しました', err);
+    rankCard.innerHTML = `
+      <div class="rank-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+        ランキングを取得できませんでした
+      </div>`;
+  }
+}
+
+function renderRanking(sorted){
+  if(sorted.length === 0){
+    rankCard.innerHTML = `
+      <div class="rank-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h18M5 6v14M19 6v14M2 3h20M7 10h10"/></svg>
+        まだこの区分のデータがありません
+      </div>`;
+    return;
+  }
+
+  rankCard.innerHTML = sorted.map(([name, count], i) => {
+    const medalClass = i === 0 ? 'm1' : i === 1 ? 'm2' : i === 2 ? 'm3' : 'mn';
+    return `
+      <div class="rank-row">
+        <div class="rank-medal ${medalClass}">${i+1}</div>
+        <div class="rank-name">${escapeHtml(name)}</div>
+        <div class="rank-count">${count.toLocaleString()}個</div>
+      </div>`;
+  }).join('');
+}
+
+scopeTabs.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  scopeTabs.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentScope = btn.dataset.scope;
+  loadRanking();
+});
+
+periodToggle.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  periodToggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentPeriod = btn.dataset.period;
+  loadRanking();
+});
+
+let resolved = false;
+auth.onAuthStateChanged((user) => {
+  if(resolved) return;
+  resolved = true;
+  if(!user){
+    window.location.href = LOGIN_PAGE;
+    return;
+  }
+  overlay.style.opacity = '0';
+  setTimeout(() => overlay.style.display = 'none', 350);
+  loadRanking();
+});
+</script>
+</body>
+</html>
